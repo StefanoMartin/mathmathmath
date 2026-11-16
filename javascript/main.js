@@ -37,10 +37,11 @@ var readNumber = function(input, fallback){
   return isFinite(v) ? v : fallback;
 };
 
-// Set both the number field and the slider of a row to the same value.
+// Set both the number field and the slider of a row (if it has one) to the same value.
 var setPair = function(row, value){
   row.querySelector(".number_slide").value = value;
-  row.querySelector(".slider").value = value;
+  var slider = row.querySelector(".slider");
+  if (slider) { slider.value = value; }
 };
 
 var roundTo = function(value, decimals){
@@ -104,7 +105,6 @@ var build = function(){
   var row = field.closest(".row");
   var repetition = Math.max(0, Math.floor(readNumber(field, 0)));
   var max_rep = similar.max_repetition();
-  row.querySelector(".slider").max = Math.min(max_rep, 30);
   if (repetition > max_rep){
     repetition = max_rep;
     byId("limit_warning").textContent = "Repeat limited to " + max_rep + " with " +
@@ -128,6 +128,7 @@ var build = function(){
   similar.paint(size.w, size.h);
   updateZoom();
   updatePointCount();
+  updatePresetList();
   scheduleSaveHash();
 };
 
@@ -261,7 +262,8 @@ var FAVOURITES_KEY = "similar-fractal.favourites";
 
 // Keep only the well-formed entries of a list of favourites: it may come from
 // a file, or from a store that was edited by hand.
-// An entry is {name, repeat, shape, t: [[x, y, rotation, scale(, 1)], ...]}.
+// An entry is {name, repeat, shape, last, t: [[x, y, rotation, scale(, 1)], ...]};
+// "last" (show the last generation only) is missing from favourites saved before it existed.
 var cleanFavourites = function(list){
   if (!Array.isArray(list)) { return []; }
   var good = [];
@@ -272,6 +274,7 @@ var cleanFavourites = function(list){
       name: item.name.slice(0, 40),
       repeat: isFinite(repeat) && repeat >= 0 ? repeat : 7,
       shape: validShape(item.shape),
+      last: typeof item.last === "boolean" ? item.last : undefined,
       t: item.t.filter(validTransform).slice(0, MAX_TRANSFORMS).map(compactTransform)
     });
   });
@@ -297,40 +300,85 @@ var storeFavourites = function(list){
   }
 };
 
+// ---- The Presets list: classic figures, then the favourites saved in this browser ----
+
+// The entry last picked from the list (or saved as a favourite), and the figure it gave:
+// {kind: "p" | "f", index, name, key}. While the figure is unchanged the list shows
+// that entry; once it is edited the list shows "name (edited)" on its title line, so
+// that picking the same entry again reloads it.
+var current_pick = null;
+
+// What makes a figure, for comparing with the picked entry.
+var figureKey = function(){
+  var state = readState();
+  return JSON.stringify([state.repeat, state.shape, state.last, state.transforms.map(compactTransform)]);
+};
+
+// The figure is recorded at the next redraw, after Repeat has been kept within its limit.
+var pickEntry = function(kind, index, name){
+  current_pick = { kind: kind, index: index, name: name, key: null };
+};
+
+// Show the pick in the list, and the Delete button for a favourite.
+var updatePresetList = function(){
+  var select = byId("preset");
+  var title = select.options[0];
+  var del = byId("deleteFavourite");
+
+  if (!current_pick){
+    title.textContent = "Presets\u2026";
+    select.value = "";
+    del.hidden = true;
+    return;
+  }
+  if (current_pick.key === null) { current_pick.key = figureKey(); }
+  if (figureKey() === current_pick.key){
+    title.textContent = "Presets\u2026";
+    select.value = current_pick.kind + ":" + current_pick.index;
+  } else {
+    title.textContent = current_pick.name + " (edited)";
+    select.value = "";
+  }
+  del.hidden = current_pick.kind !== "f";
+};
+
+var renderPresetList = function(list){
+  var select = byId("preset");
+  select.innerHTML = "";
+
+  var title = document.createElement("option");
+  title.value = "";
+  title.textContent = "Presets\u2026";
+  select.appendChild(title);
+
+  var group = function(label, items, prefix){
+    var g = document.createElement("optgroup");
+    g.label = label;
+    items.forEach(function(item, i){
+      var option = document.createElement("option");
+      option.value = prefix + i;
+      option.textContent = item.name;
+      g.appendChild(option);
+    });
+    select.appendChild(g);
+  };
+  group("Classic figures", PRESETS, "p:");
+  if (list.length) { group("Favourites", list, "f:"); }
+
+  // A picked favourite may have moved in the list, or been deleted.
+  if (current_pick && current_pick.kind === "f"){
+    var found = -1;
+    list.forEach(function(item, i){ if (item.name === current_pick.name) { found = i; } });
+    if (found < 0) { current_pick = null; } else { current_pick.index = found; }
+  }
+  updatePresetList();
+};
+
 var renderFavourites = function(message){
   var list = loadFavourites();
-  var ul = byId("favourites");
-  ul.innerHTML = "";
-
-  list.forEach(function(item, index){
-    var li = document.createElement("li");
-
-    var remove = document.createElement("a");
-    remove.href = "#";
-    remove.className = "removeButton favouriteRemove";
-    remove.setAttribute("data-index", index);
-    remove.textContent = "remove";
-
-    var load = document.createElement("a");
-    load.href = "#";
-    load.className = "favouriteLoad";
-    load.setAttribute("data-index", index);
-    load.title = "Show this figure";
-    load.textContent = item.name;
-
-    var detail = document.createElement("span");
-    detail.className = "favouriteDetail";
-    detail.textContent = item.shape + ", " + item.t.length +
-      (item.t.length === 1 ? " transform" : " transforms") + ", repeat " + item.repeat;
-
-    li.appendChild(remove);
-    li.appendChild(load);
-    li.appendChild(detail);
-    ul.appendChild(li);
-  });
-
+  renderPresetList(list);
   byId("favourites_note").textContent = message ||
-    (list.length ? "" : "Nothing saved yet. Favourites are kept in this browser.");
+    (list.length ? "" : "Nothing saved yet. Favourites are kept in this browser and listed under Presets.");
 };
 
 // Put an entry in a list of favourites, in place of one with the same name if there is one.
@@ -359,13 +407,15 @@ var saveFavourite = function(){
 
   var state = readState();
   putFavourite(list, {
-    name: name, repeat: state.repeat, shape: state.shape,
+    name: name, repeat: state.repeat, shape: state.shape, last: state.last,
     t: state.transforms.map(compactTransform)
   });
 
   if (storeFavourites(list)){
     field.value = "";
-    renderFavourites();
+    // The figure on screen is now this favourite.
+    current_pick = { kind: "f", index: 0, name: name, key: figureKey() };
+    renderFavourites("Saved as \u201c" + name + "\u201d.");
   } else {
     renderFavourites("This browser did not allow the figure to be saved.");
   }
@@ -374,7 +424,16 @@ var saveFavourite = function(){
 var showFavourite = function(index){
   var item = loadFavourites()[index];
   if (!item) { return; }
-  applyState({ repeat: item.repeat, shape: item.shape, transforms: item.t });
+  applyState({ repeat: item.repeat, shape: item.shape, last: item.last, transforms: item.t });
+  pickEntry("f", index, item.name);
+  scheduleBuild();
+};
+
+var showPreset = function(index){
+  var p = PRESETS[index];
+  if (!p) { return; }
+  applyState({ repeat: p.repeat, shape: p.shape, last: p.last, transforms: p.t });
+  pickEntry("p", index, p.name);
   scheduleBuild();
 };
 
@@ -414,11 +473,18 @@ var loadFavouritesFile = function(file){
   reader.readAsText(file);
 };
 
-var removeFavourite = function(index){
-  var list = loadFavourites();
-  list.splice(index, 1);
-  storeFavourites(list);
-  renderFavourites();
+// Delete the favourite picked in the Presets list (the figure on screen stays).
+var deletePickedFavourite = function(){
+  if (!current_pick || current_pick.kind !== "f") { return; }
+  var name = current_pick.name;
+  if (!confirm("Delete the favourite \u201c" + name + "\u201d?")) { return; }
+  var list = loadFavourites().filter(function(item){ return item.name !== name; });
+  current_pick = null;
+  if (storeFavourites(list)){
+    renderFavourites("Deleted \u201c" + name + "\u201d.");
+  } else {
+    renderFavourites("This browser did not allow the favourite to be deleted.");
+  }
 };
 
 // ---- Transform boxes ----
@@ -526,7 +592,8 @@ var panelEvents = function(){
     if (target.classList.contains("slider")){
       row.querySelector(".number_slide").value = target.value;
     } else if (target.classList.contains("number_slide")){
-      row.querySelector(".slider").value = target.value;
+      var slider = row.querySelector(".slider");
+      if (slider) { slider.value = target.value; }
     } else {
       return;
     }
@@ -535,13 +602,7 @@ var panelEvents = function(){
 
   document.addEventListener("click", function(e){
     var target = e.target;
-    if (target.classList.contains("favouriteLoad")){
-      e.preventDefault();
-      showFavourite(parseInt(target.getAttribute("data-index"), 10));
-    } else if (target.classList.contains("favouriteRemove")){
-      e.preventDefault();
-      removeFavourite(parseInt(target.getAttribute("data-index"), 10));
-    } else if (target.classList.contains("removeButton")){
+    if (target.classList.contains("removeButton")){
       e.preventDefault();
       target.closest(".box_iteration").remove();
       renumberBoxes();
@@ -578,21 +639,20 @@ var panelEvents = function(){
   byId("savePng").addEventListener("click", savePng);
   byId("saveSvg").addEventListener("click", saveSvg);
 
-  // Presets: the list works as a menu and goes back to its title afterwards.
+  // Presets: picking an entry shows it; the list then keeps its name (see current_pick).
   var preset = byId("preset");
-  PRESETS.forEach(function(p, i){
-    var option = document.createElement("option");
-    option.value = i;
-    option.textContent = p.name;
-    preset.appendChild(option);
-  });
   preset.addEventListener("change", function(){
-    var p = PRESETS[preset.value];
-    preset.value = "";
-    if (!p) { return; }
-    applyState({ repeat: p.repeat, shape: p.shape, last: p.last, transforms: p.t });
-    scheduleBuild();
+    var value = preset.value;
+    var index = parseInt(value.slice(2), 10);
+    if (value.indexOf("p:") === 0){
+      showPreset(index);
+    } else if (value.indexOf("f:") === 0){
+      showFavourite(index);
+    } else {
+      updatePresetList();   // the title line was picked: keep showing the current pick
+    }
   });
+  byId("deleteFavourite").addEventListener("click", deletePickedFavourite);
 
   // Zoom buttons zoom around the centre of the figure.
   byId("zoomIn").addEventListener("click", function(){ zoomCentre(1.5); });

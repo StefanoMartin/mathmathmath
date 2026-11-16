@@ -23,9 +23,11 @@
       <fieldset>
         <legend>Generations</legend>
         <table class="controls">
+          <!-- Same column widths as the transform boxes, although the first row spans two. -->
+          <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
           <tr>
             <th>Shape</th>
-            <td colspan="2">
+            <td colspan="2" class="wide">
               <select id="shape" title="The shape that is copied">
                 <option value="square">Square</option>
                 <option value="line">Line</option>
@@ -36,10 +38,11 @@
           </tr>
           <tr class="row">
             <th>Repeat</th>
-            <td><input class="number_slide" type="number" value="7" min="0" id="repetition"></td>
-            <td class="stepper">
-              <button type="button" class="step" data-target="repetition" data-step="-1" title="One generation less">&minus;</button><button type="button" class="step" data-target="repetition" data-step="1" title="One generation more">+</button>
-              <input type="range" min="0" max="16" value="7" class="slider">
+            <td colspan="2" class="wide">
+              <div class="repeat_box">
+                <input class="number_slide" type="number" value="7" min="0" id="repetition">
+                <button type="button" class="step" data-target="repetition" data-step="-1" title="One generation less">&minus;</button><button type="button" class="step" data-target="repetition" data-step="1" title="One generation more">+</button>
+              </div>
             </td>
           </tr>
         </table>
@@ -69,9 +72,9 @@
       <fieldset>
         <legend>Transforms</legend>
         <p class="preset">
-          <select id="preset" title="Replace the transforms with a classic figure">
+          <select id="preset" title="Replace the transforms with a classic figure or a favourite">
             <option value="">Presets&hellip;</option>
-          </select>
+          </select><button type="button" id="deleteFavourite" title="Delete this favourite" hidden>Delete</button>
         </p>
         <div class="boxes"></div>
         <p class="buttons">
@@ -81,23 +84,19 @@
       </fieldset>
 
       <fieldset>
-        <legend>Favourites</legend>
+        <legend>Save</legend>
+        <p class="save_label">Favourites</p>
         <p class="favourite_save">
           <input type="text" id="favourite_name" placeholder="Name" maxlength="40"
             title="A name for the current figure"><button type="button" id="saveFavourite"
             title="Keep the current transforms and repeat">Save</button>
         </p>
-        <ul id="favourites"></ul>
         <p id="favourites_note" class="hint"></p>
         <p class="buttons">
           <button type="button" id="favouritesToFile" title="Save all favourites as one file">Save to file</button>
           <button type="button" id="favouritesFromFile" title="Add the favourites of a file to this list">Load from file</button>
           <input type="file" id="favourites_file" accept=".json,application/json" hidden>
         </p>
-      </fieldset>
-
-      <fieldset>
-        <legend>Export</legend>
         <p class="buttons">
           <button type="button" id="savePng" title="Save the current view as a picture">Save PNG</button>
           <button type="button" id="saveSvg" title="Save the current view as a vector drawing">Save SVG</button>

@@ -70,6 +70,18 @@ table.controls td:nth-child(2) {
   width: 72px;
 }
 
+table.controls td.wide {
+  width: auto;
+}
+
+table.controls col.col_label {
+  width: 72px;
+}
+
+table.controls col.col_number {
+  width: 72px;
+}
+
 table.controls th {
   width: 66px;
   padding: 2px 6px 2px 0;
@@ -97,15 +109,6 @@ table.controls td {
   margin: 0 0 0 6px;
   vertical-align: middle;
   accent-color: #3b3a36;
-}
-
-/* Repeat row: − + buttons beside a shorter slider. */
-.stepper {
-  white-space: nowrap;
-}
-
-.stepper .slider {
-  width: calc(100% - 66px);
 }
 
 button.step {
@@ -164,7 +167,29 @@ fieldset > .buttons:first-of-type:nth-child(2) {
 }
 
 .preset {
+  display: flex;
   margin: 4px 0 4px;
+}
+
+.preset select {
+  flex: 1;
+  min-width: 0;
+}
+
+#deleteFavourite {
+  margin-left: 6px;
+}
+
+/* Repeat: the number field takes the room the − and + buttons leave. */
+.repeat_box {
+  display: flex;
+  align-items: center;
+}
+
+.repeat_box .number_slide {
+  flex: 1;
+  width: auto;
+  min-width: 0;
 }
 
 select {
@@ -197,7 +222,18 @@ button:active {
   background: #dcd6c6;
 }
 
-/* ---- Favourites ---- */
+/* ---- Save ---- */
+
+.save_label {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  font-style: italic;
+  color: #4a463c;
+}
+
+.save_label:first-of-type {
+  margin-top: 2px;
+}
 
 .favourite_save {
   display: flex;
@@ -215,33 +251,6 @@ button:active {
   background: #fbf9f3;
   border: 1px solid #8c8676;
   border-radius: 0;
-}
-
-#favourites {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-#favourites li {
-  padding: 3px 0;
-  border-bottom: 1px dotted #8c8676;
-  overflow: hidden;
-}
-
-.favouriteLoad {
-  font-style: italic;
-  color: #222;
-}
-
-.favouriteLoad:hover {
-  color: #1f3a5f;
-}
-
-.favouriteDetail {
-  margin-left: 6px;
-  font-size: 12px;
-  color: #4a463c;
 }
 
 #favourites_note:empty {
