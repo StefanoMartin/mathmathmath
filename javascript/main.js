@@ -131,13 +131,15 @@ var canvasSize = function(){
 
 var updateZoom = function(){
   var z = similar.zoom_level();
-  byId("zoom_level").textContent = z < 10 ? Math.round(z * 100) + "%" : "×" + Math.round(z);
+  byId("zoom_level").textContent = z < 10 ? Math.round(z * 100) + "%" : "×" + formatCount(Math.round(z));
   byId("similar_canvas").classList.toggle("zoomed", !similar.view.fit);
 };
 
-// Every square has 4 corner points; count all generations calculated.
+// Every square has 4 corner points; count all generations calculated,
+// including the extra ones added for a zoomed-in view.
 var updatePointCount = function(){
-  byId("point_count").textContent = formatCount(similar.total * 4) + " points calculated";
+  byId("point_count").textContent =
+    formatCount((similar.total + similar.extra_count) * 4) + " points calculated";
 };
 
 // ---- State: what a link has to remember ----
@@ -377,6 +379,7 @@ var panelEvents = function(){
   byId("zoomFit").addEventListener("click", function(){ similar.reset_view(); scheduleBuild(); });
 
   window.addEventListener("resize", scheduleBuild);
+  window.addEventListener("load", scheduleBuild);
   window.addEventListener("hashchange", onHashChange);
 };
 

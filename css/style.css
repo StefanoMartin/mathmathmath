@@ -210,7 +210,7 @@ button:active {
 
 #zoom_level {
   display: inline-block;
-  width: 52px;
+  width: 84px;
   text-align: center;
   font: 13px "Courier New", Courier, monospace;
 }
