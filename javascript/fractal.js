@@ -627,37 +627,50 @@ var similar = {
   // ---- Handles: the frame of each transform (where it puts the unit square) ----
 
   // Which handle is under (mx, my)? Returns {index, part: "move" | "corner"} or null.
-  handle_at: function(mx, my){
+  // slop: extra reach in CSS pixels, for fingers (a frame can be caught from just outside it).
+  handle_at: function(mx, my, slop){
     if (!this.show_handles) { return null; }
+    slop = slop || 0;
     var s = this.screen_scale();
     var p = this.to_drawing(mx, my);
-    var best = null, best_side = Infinity;
+    var corner = null, corner_gap = Infinity, corner_close = false;
+    var best = null, best_gap = Infinity, best_side = Infinity;
 
     for (var i = 0; i < this.iteration.length; i++){
       var t = this.iteration[i];
       var side = Math.sqrt(t.zr * t.zr + t.zi * t.zi);
 
-      // The dot on the corner w + z turns and resizes.
-      var reach = Math.max(4, Math.min(7, side * s / 3));
+      // The dot on the corner w + z turns and resizes: the nearest one in reach wins.
+      var dot_reach = Math.max(4, Math.min(7, side * s / 3));
       var cx = p.x - (t.wr + t.zr), cy = p.y - (t.wi + t.zi);
-      if (Math.sqrt(cx * cx + cy * cy) * s <= reach){
-        return { index: i, part: "corner" };
+      var gap = Math.sqrt(cx * cx + cy * cy) * s;
+      if (gap <= dot_reach + slop && gap < corner_gap){
+        corner = { index: i, part: "corner" };
+        corner_gap = gap;
+        corner_close = gap <= dot_reach;   // right on the dot, not only near it
       }
 
       // Anywhere inside the frame moves it: (p - w) / z must lie in the unit
-      // square (or in its mirror image, for a mirrored transform).
+      // square (or in its mirror image, for a mirrored transform). With a slop,
+      // a frame just outside also counts, but one the pointer is inside comes first.
       if (side > 0){
         var ux = p.x - t.wr, uy = p.y - t.wi;
         var a = (ux * t.zr + uy * t.zi) / (side * side);
         var b = (uy * t.zr - ux * t.zi) / (side * side);
         if (t.flip) { b = -b; }
-        if (a >= 0 && a <= 1 && b >= 0 && b <= 1 && side < best_side){
+        var outside = Math.max(0, -a, a - 1, -b, b - 1) * side * s;   // pixels outside the frame
+        if (outside <= slop &&
+            (outside < best_gap || (outside === best_gap && side < best_side))){
           best = { index: i, part: "move" };
+          best_gap = outside;
           best_side = side;
         }
       }
     }
-    return best;
+    // Right on a dot; else inside a frame; else near a dot; else near a frame.
+    if (corner && corner_close) { return corner; }
+    if (best && best_gap === 0) { return best; }
+    return corner || best;
   },
 
   // ---- Drawing ----

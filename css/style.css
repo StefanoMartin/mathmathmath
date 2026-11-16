@@ -392,11 +392,21 @@ table.colours {
   pointer-events: none;
 }
 
-/* Button in the upper-right corner of the figure. */
-.figure_button {
+/* Buttons in the upper-right corner of the figure. */
+.figure_tools {
   position: absolute;
   top: 37px;
   right: 37px;
+  display: flex;
+  gap: 6px;
+}
+
+/* On a desktop the Fit button is in the panel, next to the zoom buttons. */
+#figureFit {
+  display: none;
+}
+
+.figure_button {
   padding: 1px 8px;
   font-size: 13px;
   background: #fbf9f3;
@@ -407,4 +417,155 @@ table.colours {
 .box_iteration.hovered {
   background: rgba(47, 107, 58, 0.10);
   box-shadow: inset 3px 0 0 #2f6b3a;
+}
+
+/* Hints for a mouse or for a touch screen: only the one that fits is shown. */
+.for_touch {
+  display: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .for_mouse {
+    display: none;
+  }
+  .for_touch {
+    display: inline;
+  }
+}
+
+/* Buttons and links react at once to a tap, without waiting for a double tap. */
+button, a, select, label {
+  touch-action: manipulation;
+}
+
+/* ---- Phones and narrow windows: the figure on top, the panel below ---- */
+
+@media (max-width: 760px) {
+  html, body {
+    height: auto;
+  }
+
+  /* A field brought into view (by the keyboard, say) stops below the figure, not under it. */
+  html {
+    scroll-padding-top: 57vh;
+    scroll-padding-top: 57svh;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    font-size: 16px;
+  }
+
+  /* The figure stays at the top while the panel scrolls under it. */
+  #figure {
+    order: -1;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin-left: 0;
+    height: 55vh;
+    height: 55svh;
+    padding: 8px;
+    background: #f3efe4;
+    border-bottom: 1px solid #8c8676;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  #panel {
+    position: static;
+    width: auto;
+    padding: 14px 14px 40px;
+    overflow: visible;
+    border-right: none;
+  }
+
+  .intro {
+    font-size: 14px;
+  }
+
+  #point_count {
+    left: 15px;
+    bottom: 15px;
+    font-size: 12px;
+  }
+
+  .figure_tools {
+    top: 15px;
+    right: 15px;
+  }
+
+  #figureFit {
+    display: inline-block;
+  }
+
+  .figure_button {
+    min-height: 32px;
+    padding: 2px 10px;
+    font-size: 14px;
+  }
+
+  /* Larger targets for fingers; 16px text stops phones zooming into a field. */
+  button {
+    min-height: 34px;
+    padding: 4px 12px;
+    font-size: 16px;
+  }
+
+  input[type="text"], input[type="number"], select, .number_slide, #favourite_name {
+    min-height: 32px;
+    font-size: 16px;
+  }
+
+  .number_slide {
+    width: 66px;
+  }
+
+  .slider {
+    height: 32px;
+  }
+
+  table.controls td,
+  table.controls th {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  label {
+    display: inline-block;
+    padding: 3px 0;
+  }
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    vertical-align: -3px;
+  }
+
+  button.step {
+    width: 36px;
+  }
+
+  .zoom button {
+    min-width: 40px;
+  }
+
+  .removeButton {
+    padding: 4px 0 4px 12px;
+    font-size: 15px;
+  }
+
+  .swatches input[type="color"] {
+    width: 60px;
+    height: 32px;
+  }
+
+  #shape_pad {
+    width: 160px;
+    height: 160px;
+  }
+
+  fieldset {
+    padding: 8px 12px 10px;
+  }
 }

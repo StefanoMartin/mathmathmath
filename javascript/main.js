@@ -866,6 +866,7 @@ var panelEvents = function(){
   byId("colored").addEventListener("change", scheduleBuild);
   byId("show_handles").addEventListener("change", scheduleBuild);
   byId("toggleHandles").addEventListener("click", toggleHandles);
+  byId("figureFit").addEventListener("click", function(){ similar.reset_view(); scheduleBuild(); });
   document.addEventListener("keydown", function(e){
     // H hides or shows the frames, unless a text or number field is being typed in.
     var tag = e.target.tagName;
@@ -968,12 +969,41 @@ var figureEvents = function(){
   }, { passive: false });
 
   // Dragging: a handle changes its transform, anything else moves the view.
+  // With two fingers on the figure, pinching zooms and moving both pans.
   var drag = null;
+  var pointers = new Map();   // pointers down on the figure: id -> {x, y} (client pixels)
+
+  // Extra reach around the frames for a finger, which is less precise than a mouse.
+  var slopFor = function(e){
+    return e.pointerType === "touch" ? 14 : (e.pointerType === "pen" ? 6 : 0);
+  };
+
+  var pinchState = function(){
+    var p = Array.from(pointers.values());
+    return {
+      x: (p[0].x + p[1].x) / 2,
+      y: (p[0].y + p[1].y) / 2,
+      dist: Math.max(1, Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y))
+    };
+  };
 
   canvas.addEventListener("pointerdown", function(e){
-    if (e.button !== 0) { return; }
+    if (e.pointerType === "mouse" && e.button !== 0) { return; }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.setPointerCapture(e.pointerId);
+    e.preventDefault();
+
+    // A second finger: whatever the first one was doing becomes a pinch.
+    if (pointers.size === 2){
+      drag = { type: "pinch", state: pinchState() };
+      similar.view.held = false;
+      canvas.classList.remove("dragging");
+      return;
+    }
+    if (pointers.size > 2) { return; }
+
     var p = position(e);
-    var hit = similar.handle_at(p.x, p.y);
+    var hit = similar.handle_at(p.x, p.y, slopFor(e));
 
     if (hit){
       // Keep the view still while the figure changes under the pointer.
@@ -982,27 +1012,40 @@ var figureEvents = function(){
       var t = readTransforms()[hit.index];
       drag = { type: hit.part, index: hit.index, was_fit: was_fit,
                dx: d.x - t[0], dy: d.y - t[1], x: t[0], y: t[1] };
+      setHover(hit.index);
     } else if (!similar.view.fit){
       drag = { type: "pan", x: e.clientX, y: e.clientY };
       canvas.classList.add("dragging");
     } else {
-      return;
+      drag = null;
     }
-    canvas.setPointerCapture(e.pointerId);
-    e.preventDefault();
   });
 
   canvas.addEventListener("pointermove", function(e){
+    if (pointers.has(e.pointerId)){
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
     var p = position(e);
 
     if (!drag){
-      var hit = similar.handle_at(p.x, p.y);
-      canvas.style.cursor = hit ? (hit.part === "corner" ? "crosshair" : "move") : "";
-      setHover(hit ? hit.index : -1);
+      if (e.pointerType === "mouse"){
+        var hit = similar.handle_at(p.x, p.y);
+        canvas.style.cursor = hit ? (hit.part === "corner" ? "crosshair" : "move") : "";
+        setHover(hit ? hit.index : -1);
+      }
       return;
     }
 
-    if (drag.type === "pan"){
+    if (drag.type === "pinch"){
+      if (pointers.size < 2) { return; }
+      var now = pinchState();
+      var rect = canvas.getBoundingClientRect();
+      var mx = now.x - rect.left - canvas.clientLeft, my = now.y - rect.top - canvas.clientTop;
+      // Zoom around the point between the fingers, then follow it as it moves.
+      similar.zoom_at(now.dist / drag.state.dist, mx, my);
+      similar.pan(now.x - drag.state.x, now.y - drag.state.y);
+      drag.state = now;
+    } else if (drag.type === "pan"){
       similar.pan(e.clientX - drag.x, e.clientY - drag.y);
       drag.x = e.clientX;
       drag.y = e.clientY;
@@ -1026,13 +1069,28 @@ var figureEvents = function(){
     scheduleBuild();
   });
 
-  var endDrag = function(){
+  var endDrag = function(e){
+    pointers.delete(e.pointerId);
+
+    // Lifting one finger of a pinch: the other one goes on moving the view.
+    if (drag && drag.type === "pinch"){
+      if (pointers.size === 1 && !similar.view.fit){
+        var rest = pointers.values().next().value;
+        drag = { type: "pan", x: rest.x, y: rest.y };
+      } else if (pointers.size === 0){
+        drag = null;
+      }
+      return;
+    }
+    if (pointers.size > 0) { return; }
+
     if (drag && drag.was_fit){
       similar.reset_view();
       scheduleBuild();
     }
     drag = null;
     canvas.classList.remove("dragging");
+    if (e.pointerType !== "mouse") { setHover(-1); }
   };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);

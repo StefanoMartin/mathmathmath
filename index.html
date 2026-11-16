@@ -48,7 +48,7 @@
             <label><input type="checkbox" id="pad_closed" checked> Closed</label>
             <button type="button" id="padUndo" title="Remove the last point">Undo point</button>
             <button type="button" id="padClear" title="Remove all the points">Clear</button>
-            <p class="hint">Click in the square to add points. The square is the one the transforms copy.</p>
+            <p class="hint"><span class="for_mouse">Click</span><span class="for_touch">Tap</span> in the square to add points. The square is the one the transforms copy.</p>
           </div>
         </div>
       </fieldset>
@@ -92,7 +92,8 @@
           <button type="button" id="zoomFit" title="Show the whole figure">Fit</button>
         </p>
         <p class="hint">
-          Scroll on the figure to zoom, drag to move; Fit shows the whole figure again.
+          <span class="for_mouse">Scroll on the figure to zoom, drag to move; Fit shows the whole figure again.</span>
+          <span class="for_touch">Pinch the figure to zoom, drag with two fingers to move; Fit shows the whole figure again.</span>
           Zooming in adds finer generations for the part in view.
           Drag a green square to move its transform; drag its dot to turn
           and resize it.
@@ -137,8 +138,11 @@
     <div id="figure">
       <canvas id="similar_canvas"></canvas>
       <div id="point_count"></div>
-      <button type="button" id="toggleHandles" class="figure_button"
-        title="Show or hide the frames of the transforms (key H)">Hide transforms</button>
+      <div class="figure_tools">
+        <button type="button" id="figureFit" class="figure_button" title="Show the whole figure">Fit</button>
+        <button type="button" id="toggleHandles" class="figure_button"
+          title="Show or hide the frames of the transforms (key H)">Hide transforms</button>
+      </div>
     </div>
   </body>
 </html>
