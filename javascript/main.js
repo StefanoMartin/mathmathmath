@@ -115,6 +115,7 @@ var build = function(){
   similar.only_last    = byId("only_last").checked;
   similar.colored      = byId("colored").checked;
   similar.show_handles = byId("show_handles").checked;
+  byId("toggleHandles").textContent = similar.show_handles ? "Hide transforms" : "Show transforms";
   similar.filled       = byId("filled").checked;
 
   var shape = validShape(byId("shape").value);
@@ -864,6 +865,22 @@ var panelEvents = function(){
   byId("only_last").addEventListener("change", scheduleBuild);
   byId("colored").addEventListener("change", scheduleBuild);
   byId("show_handles").addEventListener("change", scheduleBuild);
+  byId("toggleHandles").addEventListener("click", toggleHandles);
+  document.addEventListener("keydown", function(e){
+    // H hides or shows the frames, unless a text or number field is being typed in.
+    var tag = e.target.tagName;
+    if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT"){
+      toggleHandles();
+    }
+  });
+
+  // Hovering a transform box highlights its frame on the figure.
+  byId("panel").addEventListener("mouseover", function(e){
+    var box = e.target.closest(".box_iteration");
+    setHover(box ? boxes().indexOf(box) : -1);
+  });
+  byId("panel").addEventListener("mouseleave", function(){ setHover(-1); });
   byId("filled").addEventListener("change", scheduleBuild);
   document.addEventListener("change", function(e){
     if (e.target.classList.contains("mirror")) { scheduleBuild(); }
@@ -905,6 +922,22 @@ var panelEvents = function(){
   window.addEventListener("resize", scheduleBuild);
   window.addEventListener("load", scheduleBuild);
   window.addEventListener("hashchange", onHashChange);
+};
+
+var toggleHandles = function(){
+  var box = byId("show_handles");
+  box.checked = !box.checked;
+  if (!box.checked) { setHover(-1); }
+  scheduleBuild();
+};
+
+// Highlight one transform (its frame on the figure and its box in the panel), or none (-1).
+var setHover = function(index){
+  if (!similar.show_handles) { index = -1; }
+  if (index === similar.hover_index) { return; }
+  similar.hover_index = index;
+  boxes().forEach(function(box, i){ box.classList.toggle("hovered", i === index); });
+  scheduleBuild();
 };
 
 var zoomCentre = function(factor){
@@ -965,6 +998,7 @@ var figureEvents = function(){
     if (!drag){
       var hit = similar.handle_at(p.x, p.y);
       canvas.style.cursor = hit ? (hit.part === "corner" ? "crosshair" : "move") : "";
+      setHover(hit ? hit.index : -1);
       return;
     }
 
@@ -1002,6 +1036,9 @@ var figureEvents = function(){
   };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
+  canvas.addEventListener("pointerleave", function(){
+    if (!drag) { setHover(-1); }
+  });
 
   canvas.addEventListener("dblclick", function(){
     similar.reset_view();

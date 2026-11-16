@@ -132,6 +132,7 @@ var similar = {
   only_last: false,
   colored: true,
   show_handles: true,
+  hover_index: -1,         // transform whose frame is highlighted, or -1
   filled: false,           // fill closed shapes instead of outlining them
   line_width: 1.5,         // in CSS pixels
   shape: null,             // see set_shape()
@@ -775,38 +776,78 @@ var similar = {
     }
   },
 
-  // Dashed frame, name and corner dot for each transform.
+  // Dashed frame, name and corner dot for each transform. Every frame has a
+  // pale outline under it so it stands out on the drawing; the one under the
+  // pointer (hover_index) is drawn solid, shaded and on top of the others.
   paint_handles: function(ctx, s, ox, oy, dpr){
-    ctx.font = "italic " + (13 * dpr) + "px Georgia, 'Times New Roman', serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    var order = [];
     for (var i = 0; i < this.iteration.length; i++){
+      if (i !== this.hover_index) { order.push(i); }
+    }
+    if (this.hover_index >= 0 && this.hover_index < this.iteration.length){
+      order.push(this.hover_index);
+    }
+
+    for (var o = 0; o < order.length; o++){
+      i = order[o];
+      var on = i === this.hover_index;
       var t = this.iteration[i];
       var dx = t.zr * s, dy = t.zi * s;
       var ux = t.flip ? dy : -dy, uy = t.flip ? dx : -dx;
       var X = t.wr * s + ox, Y = oy - t.wi * s;
 
+      var frame = function(){
+        ctx.beginPath();
+        ctx.moveTo(X, Y);
+        ctx.lineTo(X + dx, Y - dy);
+        ctx.lineTo(X + dx + ux, Y - dy + uy);
+        ctx.lineTo(X + ux, Y + uy);
+        ctx.closePath();
+      };
+
+      if (on){
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = HANDLE_INK;
+        frame();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // Pale outline, then the frame itself.
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = PAPER;
+      ctx.lineWidth = (on ? 6 : 4) * dpr;
+      frame();
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
       ctx.strokeStyle = HANDLE_INK;
-      ctx.lineWidth = 1.5 * dpr;
-      ctx.setLineDash([5 * dpr, 3 * dpr]);
-      ctx.beginPath();
-      ctx.moveTo(X, Y);
-      ctx.lineTo(X + dx, Y - dy);
-      ctx.lineTo(X + dx + ux, Y - dy + uy);
-      ctx.lineTo(X + ux, Y + uy);
-      ctx.closePath();
+      ctx.lineWidth = (on ? 2.5 : 1.5) * dpr;
+      ctx.setLineDash(on ? [] : [5 * dpr, 3 * dpr]);
+      frame();
       ctx.stroke();
       ctx.setLineDash([]);
 
+      // The corner dot (turn and resize), with a pale ring.
+      var r = (on ? 6 : 4) * dpr;
+      ctx.fillStyle = PAPER;
+      ctx.beginPath();
+      ctx.arc(X + dx, Y - dy, r + 1.5 * dpr, 0, 2 * Math.PI);
+      ctx.fill();
       ctx.fillStyle = HANDLE_INK;
       ctx.beginPath();
-      ctx.arc(X + dx, Y - dy, 4 * dpr, 0, 2 * Math.PI);
+      ctx.arc(X + dx, Y - dy, r, 0, 2 * Math.PI);
       ctx.fill();
 
-      if (Math.abs(dx) + Math.abs(dy) > 30 * dpr){
+      // The name, when the frame is large enough or under the pointer.
+      if (on || Math.abs(dx) + Math.abs(dy) > 30 * dpr){
         var label = "T" + (i + 1);
         var lx = X + (dx + ux) * 0.5, ly = Y + (uy - dy) * 0.5;
+        ctx.font = "italic " + ((on ? 16 : 13) * dpr) + "px Georgia, 'Times New Roman', serif";
         ctx.strokeStyle = PAPER;
         ctx.lineWidth = 4 * dpr;
         ctx.strokeText(label, lx, ly);

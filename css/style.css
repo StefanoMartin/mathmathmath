@@ -136,7 +136,8 @@ button.step + button.step {
 /* ---- Transform boxes ---- */
 
 .box_iteration {
-  padding: 4px 0 6px;
+  margin: 0 -6px;
+  padding: 4px 6px 6px;
   border-bottom: 1px dotted #8c8676;
 }
 
@@ -389,4 +390,21 @@ table.colours {
   background: #fbf9f3;
   border: 1px solid #8c8676;
   pointer-events: none;
+}
+
+/* Button in the upper-right corner of the figure. */
+.figure_button {
+  position: absolute;
+  top: 37px;
+  right: 37px;
+  padding: 1px 8px;
+  font-size: 13px;
+  background: #fbf9f3;
+  border: 1px solid #8c8676;
+}
+
+/* A transform box whose frame is under the pointer on the figure, or the other way round. */
+.box_iteration.hovered {
+  background: rgba(47, 107, 58, 0.10);
+  box-shadow: inset 3px 0 0 #2f6b3a;
 }
