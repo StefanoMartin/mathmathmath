@@ -21,13 +21,24 @@ var TINY = 0.5;
 var SHAPES = { square: 0, line: 1, triangle: 2, dot: 3 };
 var TRIANGLE_HEIGHT = Math.sqrt(3) / 2;
 
-// Colours: paper, plain ink, the two ends of the per-generation blend
-// (first generation in blue-black ink, last in brick red) and the handles.
+// Colour schemes: the inks of the first, middle and last generation, and the
+// paper they are drawn on. Generations in between are blended (see setColours).
+var PALETTES = [
+  { name: "Sunset",    stops: ["#2d1b69", "#c2255c", "#e8590c"], paper: "#fbf9f3" },
+  { name: "Ocean",     stops: ["#0b2545", "#1864ab", "#0c8599"], paper: "#fbf9f3" },
+  { name: "Forest",    stops: ["#1b4332", "#2b8a3e", "#5c940d"], paper: "#fbf9f3" },
+  { name: "Viridis",   stops: ["#440154", "#21918c", "#7aa80e"], paper: "#fbf9f3" },
+  { name: "Ink",       stops: ["#1f3a5f", "#6e4058", "#a83424"], paper: "#fbf9f3" },
+  { name: "Ember",     stops: ["#b5179e", "#f48c06", "#ffe066"], paper: "#16120f" },
+  { name: "Aurora",    stops: ["#7b2cbf", "#4cc9f0", "#b9fbc0"], paper: "#0e1525" },
+  { name: "Blueprint", stops: ["#ffffff", "#b8dcff", "#7fbfff"], paper: "#0b3d6e" }
+];
+
+// The colours in use; set with setColours().
 var PAPER = "#fbf9f3";
-var INK = "#2a2a2a";
-var INK_FIRST = [31, 58, 95];
-var INK_LAST  = [168, 52, 36];
-var HANDLE_INK = "#2f6b3a";
+var INK = "#2a2a2a";         // plain drawing ("Colour by generation" off)
+var HANDLE_INK = "#2f6b3a";  // the green frames of the transforms
+var COLOUR_TABLE = [];       // 256 blended colours, first to last generation
 
 /*
  * Every copy is a similarity map applied to the seed shape, stored as two
@@ -57,6 +68,7 @@ var similar = {
   only_last: false,
   colored: true,
   show_handles: true,
+  line_width: 1.5,         // in CSS pixels
 
   squares: new Float64Array(4),
   flips: new Uint8Array(1),
@@ -585,7 +597,7 @@ var similar = {
     var ox = pw / 2 - c.x * s;   // X = x*s + ox
     var oy = ph / 2 + c.y * s;   // Y = oy - y*s
 
-    ctx.lineWidth = dpr;
+    ctx.lineWidth = dpr * this.line_width;
     ctx.setLineDash([]);
     this.refine();
     var kind = SHAPES[this.shape] || 0;
@@ -606,7 +618,7 @@ var similar = {
   trace: function(ctx, run, kind, s, ox, oy, pw, ph, dpr){
     var sq = run.buf, fl = run.flip, flags = run.flags, off = run.off;
     var tones = run.tones || null, tone = run.tone;
-    var dot = kind === 3, half = dpr;   // a dot is 2 pixels across
+    var dot = kind === 3, half = dpr * Math.max(1, this.line_width);   // a dot is 2 line widths across
     var drawn = 0;
     ctx.beginPath();
     for (var i = run.from; i < run.to; i++){
@@ -709,8 +721,9 @@ var similar = {
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h +
         '" viewBox="0 0 ' + w + " " + h + '">',
       '<rect width="100%" height="100%" fill="' + PAPER + '"/>',
-      kind === 3 ? '<g stroke="none">' : '<g fill="none" stroke-width="1">'
+      kind === 3 ? '<g stroke="none">' : '<g fill="none" stroke-width="' + this.line_width + '">'
     ];
+    var half = Math.max(1, this.line_width);
 
     this.refine();
     var runs = this.runs();
@@ -726,7 +739,7 @@ var similar = {
 
         if (kind === 3){
           if (X < 0 || X > w || Y < 0 || Y > h) { continue; }
-          d.push("M" + f(X - 1) + " " + f(Y - 1) + "h2v2h-2z");
+          d.push("M" + f(X - half) + " " + f(Y - half) + "h" + f(2 * half) + "v" + f(2 * half) + "h" + f(-2 * half) + "z");
           continue;
         }
         var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
@@ -753,12 +766,71 @@ var similar = {
 // Colour for a generation, t from 0 (first) to 1 (last).
 var generationColour = function(t){
   t = Math.min(1, Math.max(0, t));
-  return fullColorHex(
-    Math.round(INK_FIRST[0] + (INK_LAST[0] - INK_FIRST[0]) * t),
-    Math.round(INK_FIRST[1] + (INK_LAST[1] - INK_FIRST[1]) * t),
-    Math.round(INK_FIRST[2] + (INK_LAST[2] - INK_FIRST[2]) * t)
-  );
+  return COLOUR_TABLE[Math.round(t * 255)];
 };
+
+// ---- Colours ----
+
+var hexToRgb = function(hex){
+  var m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) { return null; }
+  var n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+// sRGB <-> OKLab. Blending in OKLab keeps the colours in between as bright and
+// as saturated as the ends, where plain RGB blending turns them grey and muddy.
+var toOklab = function(rgb){
+  var lin = rgb.map(function(c){
+    c /= 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  var l = Math.cbrt(0.4122214708 * lin[0] + 0.5363325363 * lin[1] + 0.0514459929 * lin[2]);
+  var m = Math.cbrt(0.2119034982 * lin[0] + 0.6806995451 * lin[1] + 0.1073969566 * lin[2]);
+  var s = Math.cbrt(0.0883024619 * lin[0] + 0.2817188376 * lin[1] + 0.6299787005 * lin[2]);
+  return [
+    0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
+  ];
+};
+
+var fromOklab = function(lab){
+  var l = Math.pow(lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2], 3);
+  var m = Math.pow(lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2], 3);
+  var s = Math.pow(lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2], 3);
+  return [
+     4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+  ].map(function(c){
+    var v = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    return Math.round(Math.min(1, Math.max(0, v)) * 255);
+  });
+};
+
+// Is the paper dark? (Then plain ink and the frames are drawn light.)
+var isDark = function(hex){
+  var rgb = hexToRgb(hex) || [255, 255, 255];
+  return toOklab(rgb)[0] < 0.55;
+};
+
+// Use three inks (first, middle, last generation) on the given paper.
+var setColours = function(first, middle, last, paper){
+  var stops = [first, middle, last].map(function(hex){ return toOklab(hexToRgb(hex) || [0, 0, 0]); });
+  COLOUR_TABLE = [];
+  for (var i = 0; i < 256; i++){
+    var t = i / 255 * 2;                 // 0..1 first to middle, 1..2 middle to last
+    var a = stops[t < 1 ? 0 : 1], b = stops[t < 1 ? 1 : 2], u = t < 1 ? t : t - 1;
+    var rgb = fromOklab([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u]);
+    COLOUR_TABLE.push(fullColorHex(rgb[0], rgb[1], rgb[2]));
+  }
+  PAPER = hexToRgb(paper) ? paper : "#fbf9f3";
+  var dark = isDark(PAPER);
+  INK = dark ? "#ece8dc" : "#2a2a2a";
+  HANDLE_INK = dark ? "#8fd19e" : "#2f6b3a";
+};
+
 
 var rgbToHex = function(rgb){
   var hex = Number(rgb).toString(16);
@@ -769,3 +841,6 @@ var rgbToHex = function(rgb){
 var fullColorHex = function(r, g, b){
   return "#" + rgbToHex(r) + rgbToHex(g) + rgbToHex(b);
 };
+
+// Start with the first scheme (the page replaces it with the one chosen).
+setColours(PALETTES[0].stops[0], PALETTES[0].stops[1], PALETTES[0].stops[2], PALETTES[0].paper);

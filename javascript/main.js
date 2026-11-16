@@ -487,6 +487,82 @@ var deletePickedFavourite = function(){
   }
 };
 
+// ---- Colours: a scheme from PALETTES, or "custom"; kept in this browser ----
+
+var COLOURS_KEY = "similar-fractal.colours";
+var COLOUR_FIELDS = ["colour_first", "colour_middle", "colour_last", "colour_paper"];
+
+var readColourFields = function(){
+  return COLOUR_FIELDS.map(function(id){ return byId(id).value; });
+};
+
+var setColourFields = function(values){
+  COLOUR_FIELDS.forEach(function(id, i){ byId(id).value = values[i]; });
+};
+
+// Apply what the panel shows, remember it, and redraw.
+var applyColours = function(){
+  var c = readColourFields();
+  setColours(c[0], c[1], c[2], c[3]);
+  byId("similar_canvas").style.background = PAPER;
+  similar.line_width = parseFloat(byId("line_width").value) || 1.5;
+  try {
+    localStorage.setItem(COLOURS_KEY, JSON.stringify({
+      palette: byId("palette").value, colours: c, lines: byId("line_width").value
+    }));
+  } catch (e) { /* not kept: fine */ }
+  scheduleBuild();
+};
+
+var paletteValues = function(p){
+  return [p.stops[0], p.stops[1], p.stops[2], p.paper];
+};
+
+var colourEvents = function(){
+  var select = byId("palette");
+  PALETTES.forEach(function(p, i){
+    var option = document.createElement("option");
+    option.value = i;
+    option.textContent = p.name;
+    select.appendChild(option);
+  });
+  var custom = document.createElement("option");
+  custom.value = "custom";
+  custom.textContent = "Custom";
+  select.appendChild(custom);
+
+  // Start from what was used last time, if anything.
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(COLOURS_KEY)); } catch (e) { saved = null; }
+  var valid = saved && Array.isArray(saved.colours) && saved.colours.length === 4 &&
+    saved.colours.every(function(c){ return hexToRgb(c) !== null; });
+  if (saved && ["1", "1.5", "2.5"].indexOf(saved.lines) >= 0){
+    byId("line_width").value = saved.lines;
+  }
+  if (valid && (saved.palette === "custom" || PALETTES[saved.palette])){
+    select.value = String(saved.palette);
+    setColourFields(saved.colours);
+  } else {
+    select.value = "0";
+    setColourFields(paletteValues(PALETTES[0]));
+  }
+  applyColours();
+
+  // A scheme fills in the four colours; changing any colour makes the scheme "Custom".
+  select.addEventListener("change", function(){
+    var p = PALETTES[select.value];
+    if (p) { setColourFields(paletteValues(p)); }
+    applyColours();
+  });
+  COLOUR_FIELDS.forEach(function(id){
+    byId(id).addEventListener("input", function(){
+      select.value = "custom";
+      applyColours();
+    });
+  });
+  byId("line_width").addEventListener("change", applyColours);
+};
+
 // ---- Transform boxes ----
 
 // Label the transforms T1, T2, ... in order.
@@ -769,6 +845,7 @@ var figureEvents = function(){
 document.addEventListener("DOMContentLoaded", function(){
   panelEvents();
   figureEvents();
+  colourEvents();
   renderFavourites();
 
   // Start from the link if it describes a figure, otherwise from the Pythagoras tree.

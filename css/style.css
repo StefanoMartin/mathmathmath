@@ -257,6 +257,37 @@ button:active {
   display: none;
 }
 
+/* ---- Colours ---- */
+
+table.colours {
+  margin-top: 8px;
+}
+
+.swatches {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0 0;
+}
+
+.swatches label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  font-style: italic;
+  color: #4a463c;
+}
+
+.swatches input[type="color"] {
+  width: 52px;
+  height: 24px;
+  padding: 1px;
+  background: #fbf9f3;
+  border: 1px solid #5c584d;
+  border-radius: 0;
+  cursor: pointer;
+}
+
 /* ---- Zoom ---- */
 
 .zoom {

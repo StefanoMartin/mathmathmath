@@ -52,8 +52,33 @@
       <fieldset>
         <legend>Display</legend>
         <label><input type="checkbox" id="only_last"> Last generation only</label><br>
-        <label><input type="checkbox" id="colored"> Colour by generation</label><br>
+        <label><input type="checkbox" id="colored" checked> Colour by generation</label><br>
         <label><input type="checkbox" id="show_handles" checked> Show transforms on the figure</label>
+        <table class="controls colours">
+          <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
+          <tr>
+            <th>Colours</th>
+            <td colspan="2" class="wide">
+              <select id="palette" title="Inks and paper"></select>
+            </td>
+          </tr>
+          <tr>
+            <th>Lines</th>
+            <td colspan="2" class="wide">
+              <select id="line_width" title="Thickness of the lines">
+                <option value="1">Fine</option>
+                <option value="1.5" selected>Medium</option>
+                <option value="2.5">Bold</option>
+              </select>
+            </td>
+          </tr>
+        </table>
+        <div class="swatches">
+          <label title="Ink of the first generation"><input type="color" id="colour_first"><span>First</span></label>
+          <label title="Ink of the middle generation"><input type="color" id="colour_middle"><span>Middle</span></label>
+          <label title="Ink of the last generation"><input type="color" id="colour_last"><span>Last</span></label>
+          <label title="Colour of the paper"><input type="color" id="colour_paper"><span>Paper</span></label>
+        </div>
         <p class="zoom">
           Zoom
           <button type="button" id="zoomOut" title="Zoom out">&minus;</button>
