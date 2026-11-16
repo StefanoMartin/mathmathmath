@@ -227,6 +227,130 @@ var onHashChange = function(){
   }
 };
 
+// ---- Favourites: figures kept in this browser ----
+
+var FAVOURITES_KEY = "similar-fractal.favourites";
+
+// The saved figures, as [{name, repeat, t: [[x, y, rotation, scale], ...]}].
+var loadFavourites = function(){
+  var list;
+  try {
+    list = JSON.parse(localStorage.getItem(FAVOURITES_KEY));
+  } catch (e) {
+    return [];
+  }
+  if (!Array.isArray(list)) { return []; }
+
+  // Keep only what is well formed: the store can be edited by hand.
+  var good = [];
+  list.forEach(function(item){
+    if (!item || typeof item.name !== "string" || !Array.isArray(item.t)) { return; }
+    var repeat = Math.floor(Number(item.repeat));
+    var transforms = item.t.filter(function(t){
+      return Array.isArray(t) && t.length === 4 &&
+        t.every(function(v){ return typeof v === "number" && isFinite(v); });
+    }).slice(0, MAX_TRANSFORMS);
+    good.push({
+      name: item.name.slice(0, 40),
+      repeat: isFinite(repeat) && repeat >= 0 ? repeat : 7,
+      t: transforms
+    });
+  });
+  return good;
+};
+
+// Returns false when the browser refuses to store (private mode, storage full...).
+var storeFavourites = function(list){
+  try {
+    localStorage.setItem(FAVOURITES_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+var renderFavourites = function(message){
+  var list = loadFavourites();
+  var ul = byId("favourites");
+  ul.innerHTML = "";
+
+  list.forEach(function(item, index){
+    var li = document.createElement("li");
+
+    var remove = document.createElement("a");
+    remove.href = "#";
+    remove.className = "removeButton favouriteRemove";
+    remove.setAttribute("data-index", index);
+    remove.textContent = "remove";
+
+    var load = document.createElement("a");
+    load.href = "#";
+    load.className = "favouriteLoad";
+    load.setAttribute("data-index", index);
+    load.title = "Show this figure";
+    load.textContent = item.name;
+
+    var detail = document.createElement("span");
+    detail.className = "favouriteDetail";
+    detail.textContent = item.t.length + (item.t.length === 1 ? " transform" : " transforms") +
+      ", repeat " + item.repeat;
+
+    li.appendChild(remove);
+    li.appendChild(load);
+    li.appendChild(detail);
+    ul.appendChild(li);
+  });
+
+  byId("favourites_note").textContent = message ||
+    (list.length ? "" : "Nothing saved yet. Favourites are kept in this browser.");
+};
+
+// Keep the current transforms and repeat under the given name (a used name is replaced).
+var saveFavourite = function(){
+  var list = loadFavourites();
+  var field = byId("favourite_name");
+  var name = field.value.trim();
+
+  if (!name){
+    var taken = list.map(function(item){ return item.name; });
+    var number = list.length + 1;
+    while (taken.indexOf("Figure " + number) >= 0) { number++; }
+    name = "Figure " + number;
+  }
+
+  var state = readState();
+  var entry = { name: name, repeat: state.repeat, t: state.transforms };
+  var replaced = false;
+  for (var i = 0; i < list.length; i++){
+    if (list[i].name === name){
+      list[i] = entry;
+      replaced = true;
+    }
+  }
+  if (!replaced) { list.push(entry); }
+
+  if (storeFavourites(list)){
+    field.value = "";
+    renderFavourites();
+  } else {
+    renderFavourites("This browser did not allow the figure to be saved.");
+  }
+};
+
+var showFavourite = function(index){
+  var item = loadFavourites()[index];
+  if (!item) { return; }
+  applyState({ repeat: item.repeat, transforms: item.t });
+  scheduleBuild();
+};
+
+var removeFavourite = function(index){
+  var list = loadFavourites();
+  list.splice(index, 1);
+  storeFavourites(list);
+  renderFavourites();
+};
+
 // ---- Transform boxes ----
 
 // Label the transforms T1, T2, ... in order.
@@ -335,7 +459,13 @@ var panelEvents = function(){
 
   document.addEventListener("click", function(e){
     var target = e.target;
-    if (target.classList.contains("removeButton")){
+    if (target.classList.contains("favouriteLoad")){
+      e.preventDefault();
+      showFavourite(parseInt(target.getAttribute("data-index"), 10));
+    } else if (target.classList.contains("favouriteRemove")){
+      e.preventDefault();
+      removeFavourite(parseInt(target.getAttribute("data-index"), 10));
+    } else if (target.classList.contains("removeButton")){
       e.preventDefault();
       target.closest(".box_iteration").remove();
       renumberBoxes();
@@ -354,6 +484,10 @@ var panelEvents = function(){
   byId("only_last").addEventListener("change", scheduleBuild);
   byId("colored").addEventListener("change", scheduleBuild);
   byId("show_handles").addEventListener("change", scheduleBuild);
+  byId("saveFavourite").addEventListener("click", saveFavourite);
+  byId("favourite_name").addEventListener("keydown", function(e){
+    if (e.key === "Enter") { saveFavourite(); }
+  });
   byId("savePng").addEventListener("click", savePng);
   byId("saveSvg").addEventListener("click", saveSvg);
 
@@ -488,6 +622,7 @@ var figureEvents = function(){
 document.addEventListener("DOMContentLoaded", function(){
   panelEvents();
   figureEvents();
+  renderFavourites();
 
   // Start from the link if it describes a figure, otherwise from the Pythagoras tree.
   var state = decodeState(location.hash);

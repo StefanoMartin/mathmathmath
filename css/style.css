@@ -197,6 +197,57 @@ button:active {
   background: #dcd6c6;
 }
 
+/* ---- Favourites ---- */
+
+.favourite_save {
+  display: flex;
+  margin: 4px 0 4px;
+}
+
+#favourite_name {
+  flex: 1;
+  min-width: 0;
+  margin-right: 6px;
+  padding: 1px 4px;
+  font: inherit;
+  font-size: 14px;
+  color: #222;
+  background: #fbf9f3;
+  border: 1px solid #8c8676;
+  border-radius: 0;
+}
+
+#favourites {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#favourites li {
+  padding: 3px 0;
+  border-bottom: 1px dotted #8c8676;
+  overflow: hidden;
+}
+
+.favouriteLoad {
+  font-style: italic;
+  color: #222;
+}
+
+.favouriteLoad:hover {
+  color: #1f3a5f;
+}
+
+.favouriteDetail {
+  margin-left: 6px;
+  font-size: 12px;
+  color: #4a463c;
+}
+
+#favourites_note:empty {
+  display: none;
+}
+
 /* ---- Zoom ---- */
 
 .zoom {

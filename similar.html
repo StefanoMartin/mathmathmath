@@ -70,6 +70,17 @@
       </fieldset>
 
       <fieldset>
+        <legend>Favourites</legend>
+        <p class="favourite_save">
+          <input type="text" id="favourite_name" placeholder="Name" maxlength="40"
+            title="A name for the current figure"><button type="button" id="saveFavourite"
+            title="Keep the current transforms and repeat">Save</button>
+        </p>
+        <ul id="favourites"></ul>
+        <p id="favourites_note" class="hint"></p>
+      </fieldset>
+
+      <fieldset>
         <legend>Export</legend>
         <p class="buttons">
           <button type="button" id="savePng" title="Save the current view as a picture">Save PNG</button>
