@@ -39,8 +39,28 @@ var build = function(){
   }
   similar.repetition = repetition;
 
-  similar.build();
+  // Recompute the geometry only if something that affects it changed;
+  // toggling "Colored" or "Only last" just repaints.
+  var key = JSON.stringify([similar.size_square, similar.repetition, similar.iteration]);
+  if (key !== last_geometry_key){
+    similar.build();
+    last_geometry_key = key;
+  }
+  similar.compute_bounds();
   similar.paint();
+};
+
+var last_geometry_key = null;
+
+// Coalesce bursts of input events (e.g. dragging a slider) into one redraw per frame.
+var build_pending = false;
+var scheduleBuild = function(){
+  if (build_pending) { return; }
+  build_pending = true;
+  requestAnimationFrame(function(){
+    build_pending = false;
+    build();
+  });
 };
 
 var randomInt = function(min, max){  // inclusive
@@ -63,34 +83,34 @@ var randomBuild = function(){
     setPair(rows.eq(3), Math.round(Math.random() * 100) / 100); // Size
   });
 
-  build();
+  scheduleBuild();
 };
 
 var clickEvents = function(){
   $("body").on("input", ".slider", change_value);
   $("body").on("input", ".number_slide", change_value_slide);
   $("body").on("click", ".removeButton", delete_fractal);
-  $("#addButton").on("click", function(e){ e.preventDefault(); appendBox(); build(); });
+  $("#addButton").on("click", function(e){ e.preventDefault(); appendBox(); scheduleBuild(); });
   $("#randomButton").on("click", function(e){ e.preventDefault(); randomBuild(); });
-  $("#only_last, #colored").on("change", build);
+  $("#only_last, #colored").on("change", scheduleBuild);
 };
 
 // Slider moved: copy its value into the number field of the same row.
 var change_value = function(e){
   $(e.target).closest(".row").find(".number_slide").val(e.target.value);
-  build();
+  scheduleBuild();
 };
 
 // Number field edited: copy its value into the slider of the same row.
 var change_value_slide = function(e){
   $(e.target).closest(".row").find(".slider").val(e.target.value);
-  build();
+  scheduleBuild();
 };
 
 var delete_fractal = function(e){
   e.preventDefault();
   $(e.target).closest(".box_iteration").remove();
-  build();
+  scheduleBuild();
 };
 
 // Append a new transform box (does not redraw).
