@@ -1040,10 +1040,6 @@ var figureEvents = function(){
     if (!drag) { setHover(-1); }
   });
 
-  canvas.addEventListener("dblclick", function(){
-    similar.reset_view();
-    scheduleBuild();
-  });
 };
 
 document.addEventListener("DOMContentLoaded", function(){

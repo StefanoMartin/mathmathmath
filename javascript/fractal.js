@@ -6,6 +6,8 @@ var MAX_SQUARES = 400000;
 var STROKE_CHUNK = 32;
 // Largest zoom, relative to "fit the whole drawing in the window".
 var MAX_ZOOM = 1000000;
+// Smallest zoom: 5% of "fit the whole drawing in the window".
+var MIN_ZOOM = 0.05;
 // Most extra copies calculated for a zoomed-in view.
 var MAX_EXTRA = 400000;
 // Number of ink tones used for those extra copies (they are coloured by size).
@@ -592,12 +594,9 @@ var similar = {
   zoom_at: function(factor, mx, my){
     var fit = this.fit_scale();
     var p = this.to_drawing(mx, my);
-    var s = Math.min(fit * MAX_ZOOM, this.screen_scale() * factor);
+    var s = Math.min(fit * MAX_ZOOM, Math.max(fit * MIN_ZOOM, this.screen_scale() * factor));
 
-    if (s <= fit * 1.0001){   // zoomed all the way out: back to "fit"
-      this.reset_view();
-      return;
-    }
+    // Zooming never re-centres the drawing: only reset_view() (the Fit button) does.
     this.view.fit = false;
     this.view.held = false;
     this.view.s = s;
@@ -605,7 +604,7 @@ var similar = {
     this.view.y = p.y + (my - this.canvas_h / 2) / s;
   },
 
-  // Move the view by (dx, dy) CSS pixels (only when zoomed in).
+  // Move the view by (dx, dy) CSS pixels (only when zoomed in or out).
   pan: function(dx, dy){
     if (this.view.fit) { return; }
     this.view.x -= dx / this.view.s;
