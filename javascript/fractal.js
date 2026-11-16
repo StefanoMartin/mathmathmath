@@ -1,9 +1,12 @@
 // Upper bound on the number of squares drawn, to keep the browser responsive.
 var MAX_SQUARES = 200000;
-// Upper bound on the canvas side in pixels; larger drawings are scaled down to fit.
-var MAX_CANVAS = 8000;
 // Squares traced per stroke() call (keeps individual paths a reasonable size).
 var STROKE_CHUNK = 5000;
+// Zoom range, relative to "fit the whole drawing in the window".
+var MIN_ZOOM = 1;
+var MAX_ZOOM = 5000;
+// Empty margin around the drawing at zoom 1, in CSS pixels.
+var MARGIN = 10;
 
 /*
  * Every square is a similarity transform of the unit square, stored as two
@@ -18,18 +21,21 @@ var STROKE_CHUNK = 5000;
 var similar = {
   size_square: 200,
   repetition: 10,
-  width: 1000,
-  height: 1000,
-  min_x: 0,
-  max_y: 0,
   iteration: [],
   only_last: false,
   colored: true,
-  centered: true,
 
   squares: new Float64Array(0),
   level_start: [0, 1],
   total: 1,
+
+  // Bounding box of the visible generations, in drawing units.
+  min_x: 0, min_y: 0, max_x: 1, max_y: 1,
+
+  // View: zoom factor and, when zoomed in, the drawing point at the canvas centre.
+  view: { zoom: 1, x: 0, y: 0 },
+  canvas_w: 1,
+  canvas_h: 1,
 
   add_iteration: function(x, y, rotation, size){
     var r = rotation * Math.PI / 180.0;
@@ -107,11 +113,6 @@ var similar = {
 
   // Bounding box of what will be drawn (cheap; no copies of the data).
   compute_bounds: function(){
-    if (!this.centered){
-      this.width = 1000;
-      this.height = 1000;
-      return;
-    }
     var sq = this.squares;
     var start = this.level_start[this.visible_levels()[0]];
     var min_x = Infinity, min_y = Infinity, max_x = -Infinity, max_y = -Infinity;
@@ -129,61 +130,99 @@ var similar = {
       if (hi > max_y) { max_y = hi; }
     }
 
-    this.min_x = min_x;
-    this.max_y = max_y;
-    this.width  = max_x - min_x + 20;
-    this.height = max_y - min_y + 20;
+    this.min_x = min_x; this.min_y = min_y;
+    this.max_x = max_x; this.max_y = max_y;
   },
 
-  paint: function(){
+  // ---- View: screen = centre + (point - view centre) * scale, y pointing up ----
+
+  // Pixels per drawing unit at the current zoom.
+  screen_scale: function(){
+    var w = Math.max(this.max_x - this.min_x, 1e-9);
+    var h = Math.max(this.max_y - this.min_y, 1e-9);
+    var fit = Math.min((this.canvas_w - 2 * MARGIN) / w, (this.canvas_h - 2 * MARGIN) / h);
+    return Math.max(fit, 1e-9) * this.view.zoom;
+  },
+
+  // Drawing point shown at the centre of the canvas.
+  view_centre: function(){
+    if (this.view.zoom === 1){
+      return { x: (this.min_x + this.max_x) / 2, y: (this.min_y + this.max_y) / 2 };
+    }
+    return { x: this.view.x, y: this.view.y };
+  },
+
+  // Zoom by a factor, keeping the point under (mx, my) (canvas CSS pixels) fixed.
+  zoom_at: function(factor, mx, my){
+    var s = this.screen_scale();
+    var c = this.view_centre();
+    var px = c.x + (mx - this.canvas_w / 2) / s;
+    var py = c.y - (my - this.canvas_h / 2) / s;
+
+    this.view.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, this.view.zoom * factor));
+    if (this.view.zoom === 1) { return; }   // back to "fit": recentred automatically
+
+    var s2 = this.screen_scale();
+    this.view.x = px - (mx - this.canvas_w / 2) / s2;
+    this.view.y = py + (my - this.canvas_h / 2) / s2;
+  },
+
+  // Move the view by (dx, dy) CSS pixels (only when zoomed in).
+  pan: function(dx, dy){
+    if (this.view.zoom === 1) { return; }
+    var s = this.screen_scale();
+    this.view.x -= dx / s;
+    this.view.y += dy / s;
+  },
+
+  reset_view: function(){
+    this.view.zoom = 1;
+  },
+
+  // Draw into the canvas, sized w x h CSS pixels.
+  paint: function(w, h){
     var canvas = document.getElementById("similar_canvas");
     var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
 
-    if (!isFinite(this.width) || !isFinite(this.height)){
-      canvas.width = 1;
-      canvas.height = 1;
-      return;
-    }
-
-    var scale = Math.min(1, MAX_CANVAS / this.width, MAX_CANVAS / this.height);
-    var cw = Math.max(1, Math.ceil(this.width * scale));
-    var ch = Math.max(1, Math.ceil(this.height * scale));
+    this.canvas_w = Math.max(1, w);
+    this.canvas_h = Math.max(1, h);
+    var pw = Math.round(this.canvas_w * dpr);
+    var ph = Math.round(this.canvas_h * dpr);
 
     // Resizing a canvas is expensive and resets its state: only do it when needed.
-    if (canvas.width !== cw || canvas.height !== ch){
-      canvas.width = cw;
-      canvas.height = ch;
-    } else {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, cw, ch);
+    if (canvas.width !== pw || canvas.height !== ph){
+      canvas.width = pw;
+      canvas.height = ph;
+      canvas.style.width = this.canvas_w + "px";
+      canvas.style.height = this.canvas_h + "px";
     }
-    ctx.lineWidth = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pw, ph);
 
-    // Screen coordinates: X = x*scale + ox,  Y = oy - y*scale  (y axis points up).
-    var ox, oy;
-    if (this.centered){
-      ox = (10 - this.min_x) * scale;
-      oy = (this.max_y + 10) * scale;
-    } else {
-      ox = cw / 2;
-      oy = ch / 2;
-    }
+    if (!isFinite(this.min_x) || !isFinite(this.max_y)) { return; }
+
+    // Work in device pixels so lines stay sharp on high-density screens.
+    var s = this.screen_scale() * dpr;
+    var c = this.view_centre();
+    var ox = pw / 2 - c.x * s;   // X = x*s + ox
+    var oy = ph / 2 + c.y * s;   // Y = oy - y*s
+    ctx.lineWidth = dpr;
 
     var levels = this.visible_levels();
     var first = levels[0], last = levels[1];
     var ls = this.level_start;
 
     if (!this.colored){
-      ctx.strokeStyle = "#000000";
-      this.trace(ctx, ls[first], this.total, scale, ox, oy);
+      ctx.strokeStyle = INK;
+      this.trace(ctx, ls[first], this.total, s, ox, oy);
       return;
     }
 
     // One colour per generation: batch each generation into a few stroke() calls.
     for (var level = first; level <= last; level++){
-      var c = last === 0 ? 0 : Math.round(255 * level / last);
-      ctx.strokeStyle = fullColorHex(c, 255 - c, 0);
-      this.trace(ctx, ls[level], ls[level + 1], scale, ox, oy);
+      ctx.strokeStyle = generationColour(last === 0 ? 0 : level / last);
+      this.trace(ctx, ls[level], ls[level + 1], s, ox, oy);
     }
   },
 
@@ -205,6 +244,21 @@ var similar = {
       ctx.stroke();
     }
   }
+};
+
+// Ink colours: plain drawing, and the two ends of the per-generation blend
+// (first generation in blue-black ink, last in brick red).
+var INK = "#2a2a2a";
+var INK_FIRST = [31, 58, 95];
+var INK_LAST  = [168, 52, 36];
+
+// Colour for a generation, t from 0 (first) to 1 (last).
+var generationColour = function(t){
+  return fullColorHex(
+    Math.round(INK_FIRST[0] + (INK_LAST[0] - INK_FIRST[0]) * t),
+    Math.round(INK_FIRST[1] + (INK_LAST[1] - INK_FIRST[1]) * t),
+    Math.round(INK_FIRST[2] + (INK_LAST[2] - INK_FIRST[2]) * t)
+  );
 };
 
 var rgbToHex = function(rgb){
