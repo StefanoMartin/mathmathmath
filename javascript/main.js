@@ -1,21 +1,28 @@
-// Classic figures, as lists of [x, y, rotation, scale].
+// Classic figures. Each transform is [x, y, rotation, scale] or, when it is
+// mirrored, [x, y, rotation, scale, 1]. "last" shows the last generation only,
+// which is how the curves are usually drawn.
 var PRESETS = [
-  { name: "Pythagoras tree", repeat: 10,
+  { name: "Pythagoras tree", shape: "square", repeat: 10, last: false,
     t: [[0, 1, 45, 0.707], [0.5, 1.5, 315, 0.707]] },
-  { name: "Leaning tree", repeat: 12,
+  { name: "Leaning tree", shape: "square", repeat: 12, last: false,
     t: [[0, 1, 30, 0.866], [0.75, 1.433, 300, 0.5]] },
-  { name: "Lévy C curve", repeat: 12,
+  { name: "L\u00e9vy C curve", shape: "line", repeat: 12, last: true,
     t: [[0, 0, 45, 0.707], [0.5, 0.5, 315, 0.707]] },
-  { name: "Dragon curve", repeat: 12,
+  { name: "Dragon curve", shape: "line", repeat: 12, last: true,
     t: [[0, 0, 45, 0.707], [1, 0, 135, 0.707]] },
-  { name: "Sierpinski triangle", repeat: 7,
-    t: [[0, 0, 0, 0.5], [0.5, 0, 0, 0.5], [0.25, 0.5, 0, 0.5]] },
-  { name: "Koch curve", repeat: 6,
+  { name: "Koch curve", shape: "line", repeat: 5, last: true,
     t: [[0, 0, 0, 0.333], [0.333, 0, 60, 0.333], [0.5, 0.289, 300, 0.333], [0.667, 0, 0, 0.333]] },
-  { name: "Vicsek cross", repeat: 5,
+  { name: "Sierpinski triangle", shape: "triangle", repeat: 7, last: false,
+    t: [[0, 0, 0, 0.5], [0.5, 0, 0, 0.5], [0.25, 0.433, 0, 0.5]] },
+  { name: "Sierpinski arrowhead", shape: "line", repeat: 7, last: true,
+    t: [[0, 0, 60, 0.5, 1], [0.25, 0.433, 0, 0.5], [0.75, 0.433, 300, 0.5, 1]] },
+  { name: "Vicsek cross", shape: "square", repeat: 5, last: false,
     t: [[0.333, 0, 0, 0.333], [0, 0.333, 0, 0.333], [0.333, 0.333, 0, 0.333],
         [0.667, 0.333, 0, 0.333], [0.333, 0.667, 0, 0.333]] }
 ];
+
+// Points that make up one copy of each shape (for the counter).
+var SHAPE_POINTS = { square: 4, line: 2, triangle: 3, dot: 1 };
 
 // Most transforms accepted from a link.
 var MAX_TRANSFORMS = 12;
@@ -48,7 +55,7 @@ var boxes = function(){
   return Array.prototype.slice.call(document.querySelectorAll(".boxes .box_iteration"));
 };
 
-// The transforms in the panel, as [x, y, rotation, scale].
+// The transforms in the panel, as [x, y, rotation, scale, mirrored (0 or 1)].
 var readTransforms = function(){
   return boxes().map(function(box){
     var inputs = box.querySelectorAll(".number_slide");
@@ -56,9 +63,25 @@ var readTransforms = function(){
       readNumber(inputs[0], 0),
       readNumber(inputs[1], 0),
       readNumber(inputs[2], 0),
-      readNumber(inputs[3], 0)
+      readNumber(inputs[3], 0),
+      box.querySelector(".mirror").checked ? 1 : 0
     ];
   });
+};
+
+// A transform as it is written in links and files: the mirror flag only when set.
+var compactTransform = function(t){
+  return t[4] ? t.slice(0, 5) : t.slice(0, 4);
+};
+
+// Is this [x, y, rotation, scale] or [x, y, rotation, scale, mirrored], all numbers?
+var validTransform = function(t){
+  return Array.isArray(t) && (t.length === 4 || t.length === 5) &&
+    t.every(function(v){ return typeof v === "number" && isFinite(v); });
+};
+
+var validShape = function(name){
+  return SHAPE_POINTS.hasOwnProperty(name) ? name : "square";
 };
 
 // ---- Drawing ----
@@ -69,13 +92,14 @@ var build = function(){
   similar.only_last    = byId("only_last").checked;
   similar.colored      = byId("colored").checked;
   similar.show_handles = byId("show_handles").checked;
+  similar.shape        = validShape(byId("shape").value);
 
   similar.iteration = [];
   readTransforms().forEach(function(t){
-    similar.add_iteration(t[0], t[1], t[2], t[3]);
+    similar.add_iteration(t[0], t[1], t[2], t[3], t[4]);
   });
 
-  // Keep the number of squares under MAX_SQUARES so the page doesn't freeze.
+  // Keep the number of copies under MAX_SQUARES so the page doesn't freeze.
   var field = byId("repetition");
   var row = field.closest(".row");
   var repetition = Math.max(0, Math.floor(readNumber(field, 0)));
@@ -85,7 +109,7 @@ var build = function(){
     repetition = max_rep;
     byId("limit_warning").textContent = "Repeat limited to " + max_rep + " with " +
       similar.iteration.length + " transforms, to stay under " +
-      formatCount(MAX_SQUARES) + " squares.";
+      formatCount(MAX_SQUARES) + " copies.";
   } else {
     byId("limit_warning").textContent = "";
   }
@@ -135,11 +159,11 @@ var updateZoom = function(){
   byId("similar_canvas").classList.toggle("zoomed", !similar.view.fit);
 };
 
-// Every square has 4 corner points; count all generations calculated,
+// Count the points of every copy in all generations calculated,
 // including the extra ones added for a zoomed-in view.
 var updatePointCount = function(){
-  byId("point_count").textContent =
-    formatCount((similar.total + similar.extra_count) * 4) + " points calculated";
+  var points = (similar.total + similar.extra_count) * SHAPE_POINTS[similar.shape];
+  byId("point_count").textContent = formatCount(points) + " points calculated";
 };
 
 // ---- State: what a link has to remember ----
@@ -149,6 +173,7 @@ var readState = function(){
     repeat: Math.max(0, Math.floor(readNumber(byId("repetition"), 0))),
     last: byId("only_last").checked,
     colour: byId("colored").checked,
+    shape: validShape(byId("shape").value),
     transforms: readTransforms()
   };
 };
@@ -160,22 +185,25 @@ var applyState = function(state){
   setPair(byId("repetition").closest(".row"), state.repeat);
   if (state.last !== undefined)   { byId("only_last").checked = state.last; }
   if (state.colour !== undefined) { byId("colored").checked = state.colour; }
+  if (state.shape !== undefined)  { byId("shape").value = validShape(state.shape); }
   similar.reset_view();
 };
 
-// r = repeat, l = last generation only, c = colour, t = x,y,rotation,scale;...
+// r = repeat, l = last generation only, c = colour, s = shape (when not a square),
+// t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
 var encodeState = function(state){
   return "r=" + state.repeat +
     "&l=" + (state.last ? 1 : 0) +
     "&c=" + (state.colour ? 1 : 0) +
-    "&t=" + state.transforms.map(function(t){ return t.join(","); }).join(";");
+    (state.shape && state.shape !== "square" ? "&s=" + state.shape : "") +
+    "&t=" + state.transforms.map(function(t){ return compactTransform(t).join(","); }).join(";");
 };
 
 var decodeState = function(hash){
   var text = hash.replace(/^#/, "");
   try { text = decodeURIComponent(text); } catch (e) { return null; }
 
-  var state = { repeat: 7, last: false, colour: false, transforms: [] };
+  var state = { repeat: 7, last: false, colour: false, shape: "square", transforms: [] };
   var has_transforms = false;
   text.split("&").forEach(function(part){
     var i = part.indexOf("=");
@@ -188,13 +216,13 @@ var decodeState = function(hash){
       state.last = value === "1";
     } else if (key === "c"){
       state.colour = value === "1";
+    } else if (key === "s"){
+      state.shape = validShape(value);
     } else if (key === "t"){
       has_transforms = true;
       value.split(";").forEach(function(item){
         var n = item.split(",").map(parseFloat);
-        if (n.length === 4 && n.every(function(v){ return isFinite(v); })){
-          state.transforms.push(n);
-        }
+        if (validTransform(n)) { state.transforms.push(n); }
       });
     }
   });
@@ -231,32 +259,32 @@ var onHashChange = function(){
 
 var FAVOURITES_KEY = "similar-fractal.favourites";
 
-// The saved figures, as [{name, repeat, t: [[x, y, rotation, scale], ...]}].
-var loadFavourites = function(){
-  var list;
-  try {
-    list = JSON.parse(localStorage.getItem(FAVOURITES_KEY));
-  } catch (e) {
-    return [];
-  }
+// Keep only the well-formed entries of a list of favourites: it may come from
+// a file, or from a store that was edited by hand.
+// An entry is {name, repeat, shape, t: [[x, y, rotation, scale(, 1)], ...]}.
+var cleanFavourites = function(list){
   if (!Array.isArray(list)) { return []; }
-
-  // Keep only what is well formed: the store can be edited by hand.
   var good = [];
   list.forEach(function(item){
     if (!item || typeof item.name !== "string" || !Array.isArray(item.t)) { return; }
     var repeat = Math.floor(Number(item.repeat));
-    var transforms = item.t.filter(function(t){
-      return Array.isArray(t) && t.length === 4 &&
-        t.every(function(v){ return typeof v === "number" && isFinite(v); });
-    }).slice(0, MAX_TRANSFORMS);
     good.push({
       name: item.name.slice(0, 40),
       repeat: isFinite(repeat) && repeat >= 0 ? repeat : 7,
-      t: transforms
+      shape: validShape(item.shape),
+      t: item.t.filter(validTransform).slice(0, MAX_TRANSFORMS).map(compactTransform)
     });
   });
   return good;
+};
+
+// The figures saved in this browser.
+var loadFavourites = function(){
+  try {
+    return cleanFavourites(JSON.parse(localStorage.getItem(FAVOURITES_KEY)));
+  } catch (e) {
+    return [];
+  }
 };
 
 // Returns false when the browser refuses to store (private mode, storage full...).
@@ -292,8 +320,8 @@ var renderFavourites = function(message){
 
     var detail = document.createElement("span");
     detail.className = "favouriteDetail";
-    detail.textContent = item.t.length + (item.t.length === 1 ? " transform" : " transforms") +
-      ", repeat " + item.repeat;
+    detail.textContent = item.shape + ", " + item.t.length +
+      (item.t.length === 1 ? " transform" : " transforms") + ", repeat " + item.repeat;
 
     li.appendChild(remove);
     li.appendChild(load);
@@ -305,7 +333,18 @@ var renderFavourites = function(message){
     (list.length ? "" : "Nothing saved yet. Favourites are kept in this browser.");
 };
 
-// Keep the current transforms and repeat under the given name (a used name is replaced).
+// Put an entry in a list of favourites, in place of one with the same name if there is one.
+var putFavourite = function(list, entry){
+  for (var i = 0; i < list.length; i++){
+    if (list[i].name === entry.name){
+      list[i] = entry;
+      return;
+    }
+  }
+  list.push(entry);
+};
+
+// Keep the current shape, transforms and repeat under the given name.
 var saveFavourite = function(){
   var list = loadFavourites();
   var field = byId("favourite_name");
@@ -319,15 +358,10 @@ var saveFavourite = function(){
   }
 
   var state = readState();
-  var entry = { name: name, repeat: state.repeat, t: state.transforms };
-  var replaced = false;
-  for (var i = 0; i < list.length; i++){
-    if (list[i].name === name){
-      list[i] = entry;
-      replaced = true;
-    }
-  }
-  if (!replaced) { list.push(entry); }
+  putFavourite(list, {
+    name: name, repeat: state.repeat, shape: state.shape,
+    t: state.transforms.map(compactTransform)
+  });
 
   if (storeFavourites(list)){
     field.value = "";
@@ -340,8 +374,44 @@ var saveFavourite = function(){
 var showFavourite = function(index){
   var item = loadFavourites()[index];
   if (!item) { return; }
-  applyState({ repeat: item.repeat, transforms: item.t });
+  applyState({ repeat: item.repeat, shape: item.shape, transforms: item.t });
   scheduleBuild();
+};
+
+// All favourites as one file, to keep or to move to another browser.
+var saveFavouritesFile = function(){
+  var list = loadFavourites();
+  if (!list.length){
+    renderFavourites("There is nothing to save yet.");
+    return;
+  }
+  var text = JSON.stringify({ app: "similar-fractal", favourites: list }, null, 2);
+  download(new Blob([text], { type: "application/json" }), "similar-fractal-favourites.json");
+};
+
+// Add the favourites of a file to the list; same names are replaced.
+var loadFavouritesFile = function(file){
+  var reader = new FileReader();
+  reader.onload = function(){
+    var data = null;
+    try { data = JSON.parse(reader.result); } catch (e) { data = null; }
+    var incoming = cleanFavourites(data && data.favourites ? data.favourites : data);
+    if (!incoming.length){
+      renderFavourites("That file holds no favourites.");
+      return;
+    }
+    var list = loadFavourites();
+    incoming.forEach(function(entry){ putFavourite(list, entry); });
+    if (storeFavourites(list)){
+      renderFavourites(incoming.length + (incoming.length === 1 ? " favourite" : " favourites") + " loaded.");
+    } else {
+      renderFavourites("This browser did not allow the favourites to be saved.");
+    }
+  };
+  reader.onerror = function(){
+    renderFavourites("That file could not be read.");
+  };
+  reader.readAsText(file);
 };
 
 var removeFavourite = function(index){
@@ -371,7 +441,7 @@ var controlRow = function(label, value, min, max, step){
     "</tr>";
 };
 
-// Append a transform box (does not redraw). values = [x, y, rotation, scale].
+// Append a transform box (does not redraw). values = [x, y, rotation, scale(, mirrored)].
 var appendBox = function(values){
   var v = (values || [1, 1, 45, 0.5]).map(Number);
   var m = '<div class="box_iteration">' +
@@ -382,6 +452,8 @@ var appendBox = function(values){
       controlRow("Y", v[1], -3, 3, 0.01) +
       controlRow("Rotation", v[2], 0, 360, 1) +
       controlRow("Scale", v[3], 0, 1, 0.01) +
+      '<tr><td colspan="3"><label title="Flip the copy over before turning it">' +
+        '<input type="checkbox" class="mirror"' + (v[4] ? " checked" : "") + "> Mirrored</label></td></tr>" +
     "</table>" +
   "</div>";
   document.querySelector(".boxes").insertAdjacentHTML("beforeend", m);
@@ -397,18 +469,22 @@ var randomInt = function(min, max){  // inclusive
   return Math.floor(Math.random() * (max - min + 1)) + min;
 };
 
+// Two or three transforms chosen so that the copies stay near the shape and
+// neither vanish nor swamp it: these tend to give figures worth looking at.
 var randomBuild = function(){
   var count = randomInt(2, 3);
   var transforms = [];
   for (var i = 0; i < count; i++){
-    transforms.push([
-      randomInt(-200, 200) / 100,   // X
-      randomInt(-200, 200) / 100,   // Y
-      randomInt(0, 359),            // Rotation
-      randomInt(0, 100) / 100       // Scale
-    ]);
+    var t = [
+      randomInt(-100, 150) / 100,                    // X
+      randomInt(-100, 150) / 100,                    // Y
+      randomInt(0, 23) * 15,                         // Rotation, in steps of 15 degrees
+      randomInt(count === 2 ? 50 : 40, count === 2 ? 80 : 70) / 100   // Scale
+    ];
+    if (Math.random() < 0.25) { t.push(1); }         // now and then a mirrored one
+    transforms.push(t);
   }
-  applyState({ repeat: 11 - count, transforms: transforms });
+  applyState({ repeat: count === 2 ? 11 : 8, transforms: transforms });
   scheduleBuild();
 };
 
@@ -484,6 +560,17 @@ var panelEvents = function(){
   byId("only_last").addEventListener("change", scheduleBuild);
   byId("colored").addEventListener("change", scheduleBuild);
   byId("show_handles").addEventListener("change", scheduleBuild);
+  byId("shape").addEventListener("change", scheduleBuild);
+  document.addEventListener("change", function(e){
+    if (e.target.classList.contains("mirror")) { scheduleBuild(); }
+  });
+
+  byId("favouritesToFile").addEventListener("click", saveFavouritesFile);
+  byId("favouritesFromFile").addEventListener("click", function(){ byId("favourites_file").click(); });
+  byId("favourites_file").addEventListener("change", function(e){
+    if (e.target.files.length) { loadFavouritesFile(e.target.files[0]); }
+    e.target.value = "";   // so the same file can be chosen again
+  });
   byId("saveFavourite").addEventListener("click", saveFavourite);
   byId("favourite_name").addEventListener("keydown", function(e){
     if (e.key === "Enter") { saveFavourite(); }
@@ -503,7 +590,7 @@ var panelEvents = function(){
     var p = PRESETS[preset.value];
     preset.value = "";
     if (!p) { return; }
-    applyState({ repeat: p.repeat, transforms: p.t });
+    applyState({ repeat: p.repeat, shape: p.shape, last: p.last, transforms: p.t });
     scheduleBuild();
   });
 
@@ -626,6 +713,6 @@ document.addEventListener("DOMContentLoaded", function(){
 
   // Start from the link if it describes a figure, otherwise from the Pythagoras tree.
   var state = decodeState(location.hash);
-  applyState(state || { repeat: 7, transforms: PRESETS[0].t });
+  applyState(state || { repeat: 7, shape: "square", transforms: PRESETS[0].t });
   build();
 });

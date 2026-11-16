@@ -1,19 +1,25 @@
-// Upper bound on the number of squares calculated, to keep the browser responsive.
+// Upper bound on the number of copies calculated, to keep the browser responsive.
 var MAX_SQUARES = 400000;
-// Squares traced per stroke() call. Measured in Chrome: small paths are filled
+// Copies traced per stroke() call. Measured in Chrome: small paths are filled
 // far faster than large ones (32 was about 30 times faster than 5000), while
-// one path per square pays too much per call.
+// one path per copy pays too much per call.
 var STROKE_CHUNK = 32;
 // Largest zoom, relative to "fit the whole drawing in the window".
 var MAX_ZOOM = 1000000;
-// Most extra squares calculated for a zoomed-in view.
+// Most extra copies calculated for a zoomed-in view.
 var MAX_EXTRA = 400000;
-// Number of ink tones used for those extra squares (they are coloured by size).
+// Number of ink tones used for those extra copies (they are coloured by size).
 var TONES = 32;
 // Empty margin around the drawing when fitted, in CSS pixels.
 var MARGIN = 10;
-// Squares smaller than this (half diagonal, device pixels) are drawn as one short stroke.
+// Copies smaller than this (half diagonal, device pixels) are drawn as one short stroke.
 var TINY = 0.5;
+
+// The shape that is copied. All of them fit in the unit square:
+// the square itself, its bottom side, an equilateral triangle on that side,
+// or the single point at its origin.
+var SHAPES = { square: 0, line: 1, triangle: 2, dot: 3 };
+var TRIANGLE_HEIGHT = Math.sqrt(3) / 2;
 
 // Colours: paper, plain ink, the two ends of the per-generation blend
 // (first generation in blue-black ink, last in brick red) and the handles.
@@ -24,21 +30,28 @@ var INK_LAST  = [168, 52, 36];
 var HANDLE_INK = "#2f6b3a";
 
 /*
- * The seed is the unit square. Every square is a similarity transform of it,
- * stored as two complex numbers: p -> z*p + w  (z = scale*e^(i*angle),
- * w = translation). That is 4 floats per square (zr, zi, wr, wi) in one
- * reusable Float64Array. Applying a transform T = (zt, wt) to a square
- * S = (z, w) gives
- *   z' = zt*z,   w' = zt*w + wt
- * so each new square costs a handful of multiplications and no allocation.
+ * Every copy is a similarity map applied to the seed shape, stored as two
+ * complex numbers and a flag:
+ *   p -> z*p + w          (flip = 0)
+ *   p -> z*conj(p) + w    (flip = 1, a mirrored copy)
+ * with z = scale*e^(i*angle) and w the translation. That is 4 floats per copy
+ * (zr, zi, wr, wi) in one reusable Float64Array, and the flags beside it.
+ * Applying a transform T = (zt, wt, ft) to a copy S = (z, w, f) gives
+ *   ft = 0:  z' = zt*z,        w' = zt*w + wt,        f' = f
+ *   ft = 1:  z' = zt*conj(z),  w' = zt*conj(w) + wt,  f' = 1 - f
+ * so each new copy costs a handful of multiplications and no allocation.
  * Generations are stored contiguously; level_start[k] is the index of the
- * first square of generation k (and level_start[last] is the total).
+ * first copy of generation k (and level_start[last] is the total).
+ *
+ * A copy occupies the image of the unit square: corners w, w+z, w+z+u, w+u,
+ * where u is z turned a quarter turn (to the left, or to the right if flipped).
  *
  * When the view is zoomed in, refine() adds further generations for the part
- * on screen only, so that the smallest squares stay as fine as in the full
+ * on screen only, so that the smallest copies stay as fine as in the full
  * view. Those live in a second buffer, "extra".
  */
 var similar = {
+  shape: "square",
   repetition: 10,
   iteration: [],
   only_last: false,
@@ -46,17 +59,19 @@ var similar = {
   show_handles: true,
 
   squares: new Float64Array(4),
+  flips: new Uint8Array(1),
   level_start: [0, 1],
   total: 1,
   geometry_version: 0,
 
   // Extra generations for the zoomed-in view (see refine()).
-  extra: null,             // squares, 4 floats each
-  extra_side: null,        // side of each square
-  extra_open: null,        // 1 if the square was expanded into smaller ones
-  extra_tone: null,        // ink tone of each square, 0 .. TONES - 1
-  tone_count: [],          // how many squares use each tone
-  queue_a: null,           // squares waiting to be expanded
+  extra: null,             // copies, 4 floats each
+  extra_flip: null,        // 1 if the copy is mirrored
+  extra_side: null,        // side of each copy
+  extra_open: null,        // 1 if the copy was expanded into smaller ones
+  extra_tone: null,        // ink tone of each copy, 0 .. TONES - 1
+  tone_count: [],          // how many copies use each tone
+  queue_a: null,           // copies waiting to be expanded
   queue_b: null,
   extra_count: 0,
   base_open: new Uint8Array(1),   // the same flag for the last calculated generation
@@ -74,18 +89,20 @@ var similar = {
   canvas_w: 1,
   canvas_h: 1,
 
-  // x, y in sides of the seed square; rotation in degrees; size is the scale factor.
-  add_iteration: function(x, y, rotation, size){
+  // x, y in sides of the seed square; rotation in degrees; size is the scale
+  // factor; mirror flips the copy over before it is turned.
+  add_iteration: function(x, y, rotation, size, mirror){
     var r = rotation * Math.PI / 180.0;
     this.iteration.push({
       zr: size * Math.cos(r),
       zi: size * Math.sin(r),
       wr: x,
-      wi: y
+      wi: y,
+      flip: mirror ? 1 : 0
     });
   },
 
-  // Total squares: 1 + N + N^2 + ... + N^repetition (N = number of transforms).
+  // Total copies: 1 + N + N^2 + ... + N^repetition (N = number of transforms).
   number_squares: function(repetition){
     var n = this.iteration.length;
     if (repetition === undefined) { repetition = this.repetition; }
@@ -107,35 +124,40 @@ var similar = {
   build: function(){
     var T = this.iteration;
     var n = T.length;
-    var reps = n ? this.repetition : 0;   // no transforms: only the seed square
+    var reps = n ? this.repetition : 0;   // no transforms: only the seed
     var total = n ? this.number_squares(reps) : 1;
 
-    // Reuse the buffer; grow it only when needed.
+    // Reuse the buffers; grow them only when needed.
     if (this.squares.length < total * 4){
       this.squares = new Float64Array(total * 4);
+      this.flips = new Uint8Array(total);
     }
-    var sq = this.squares;
+    var sq = this.squares, fl = this.flips;
 
-    // Seed: the unit square.
+    // Seed: the identity map.
     sq[0] = 1; sq[1] = 0; sq[2] = 0; sq[3] = 0;
+    fl[0] = 0;
 
     var level_start = [0, 1];
-    var prev_start = 0, prev_end = 1, out = 4;
+    var prev_start = 0, prev_end = 1, out = 1;
 
     for (var level = 0; level < reps; level++){
       for (var t = 0; t < n; t++){
-        var tzr = T[t].zr, tzi = T[t].zi, twr = T[t].wr, twi = T[t].wi;
-        for (var j = prev_start * 4, end = prev_end * 4; j < end; j += 4){
+        var tzr = T[t].zr, tzi = T[t].zi, twr = T[t].wr, twi = T[t].wi, tf = T[t].flip;
+        for (var i = prev_start; i < prev_end; i++){
+          var j = i * 4, o = out * 4;
           var zr = sq[j], zi = sq[j + 1], wr = sq[j + 2], wi = sq[j + 3];
-          sq[out]     = tzr * zr - tzi * zi;
-          sq[out + 1] = tzr * zi + tzi * zr;
-          sq[out + 2] = tzr * wr - tzi * wi + twr;
-          sq[out + 3] = tzr * wi + tzi * wr + twi;
-          out += 4;
+          if (tf) { zi = -zi; wi = -wi; }   // a mirrored transform conjugates what it copies
+          sq[o]     = tzr * zr - tzi * zi;
+          sq[o + 1] = tzr * zi + tzi * zr;
+          sq[o + 2] = tzr * wr - tzi * wi + twr;
+          sq[o + 3] = tzr * wi + tzi * wr + twi;
+          fl[out] = fl[i] ^ tf;
+          out++;
         }
       }
       prev_start = prev_end;
-      prev_end = out / 4;
+      prev_end = out;
       level_start.push(prev_end);
     }
 
@@ -150,9 +172,9 @@ var similar = {
     return [this.only_last ? last : 0, last];
   },
 
-  // What to stroke: a list of runs {colour, buf, from, to, flags, off}.
-  // A run with flags skips the squares that were expanded (flags[i - off] = 1),
-  // which leaves only the finest squares: the "last generation" of a refined view.
+  // What to draw: a list of runs {colour, buf, flip, from, to, flags, off}.
+  // A run with flags skips the copies that were expanded (flags[i - off] = 1),
+  // which leaves only the finest ones: the "last generation" of a refined view.
   runs: function(){
     var levels = this.visible_levels();
     var first = levels[0], last = levels[1];
@@ -169,20 +191,22 @@ var similar = {
     var leaves_only = this.only_last && this.refined;
     for (var level = first; level <= last; level++){
       runs.push({
-        colour: colour(level), buf: this.squares, from: ls[level], to: ls[level + 1],
+        colour: colour(level), buf: this.squares, flip: this.flips,
+        from: ls[level], to: ls[level + 1],
         flags: leaves_only ? this.base_open : null, off: ls[last]
       });
     }
     if (this.refined && this.extra_count){
       var flags = leaves_only ? this.extra_open : null;
       if (!this.colored){
-        runs.push({ colour: INK, buf: this.extra, from: 0, to: this.extra_count, flags: flags, off: 0 });
+        runs.push({ colour: INK, buf: this.extra, flip: this.extra_flip,
+                    from: 0, to: this.extra_count, flags: flags, off: 0 });
       } else {
         // One pass per ink tone, lightest generation first.
         for (var tone = 0; tone < TONES; tone++){
           if (!this.tone_count[tone]) { continue; }
           runs.push({
-            colour: generationColour(tone / (TONES - 1)), buf: this.extra,
+            colour: generationColour(tone / (TONES - 1)), buf: this.extra, flip: this.extra_flip,
             from: 0, to: this.extra_count, flags: flags, off: 0,
             tones: this.extra_tone, tone: tone
           });
@@ -195,20 +219,23 @@ var similar = {
   /*
    * Extra generations for a zoomed-in view.
    *
-   * Squares are expanded into smaller ones until their side is below
+   * Copies are expanded into smaller ones until their side is below
    * (largest side of the last generation) / zoom, so zooming in by some
    * factor makes everything that much finer, and nothing changes at zoom 1.
    * Going by size rather than by generation count keeps the detail even
    * when the transforms have different scales.
    *
    * Only what can be seen is kept: all the descendants of the unit square lie
-   * in a disc of radius R around its centre, so the descendants of any square
-   * lie in the image of that disc, and a square whose disc misses the window
+   * in a disc of radius R around its centre, so the descendants of any copy
+   * lie in the image of that disc, and a copy whose disc misses the window
    * is dropped with everything below it. This needs every scale to be below 1.
    *
    * Children are composed on the inside (M o T rather than T o M, which
-   * build() uses). Each generation is the same set of squares either way,
-   * but only this order keeps children next to their parent.
+   * build() uses). Each generation is the same set of copies either way,
+   * but only this order keeps children next to their parent. For M = (z, w, f)
+   * and T = (zt, wt, ft):
+   *   f = 0:  z' = z*zt,        w' = z*wt + w,        f' = ft
+   *   f = 1:  z' = z*conj(zt),  w' = z*conj(wt) + w,  f' = 1 - ft
    */
   refine: function(){
     var v = this.view;
@@ -234,8 +261,9 @@ var similar = {
       var scale = Math.sqrt(T[t].zr * T[t].zr + T[t].zi * T[t].zi);
       if (scale > 0.999) { return; }
       if (scale > s_max) { s_max = scale; }
-      var mx = 0.5 * (T[t].zr - T[t].zi) + T[t].wr - 0.5;
-      var my = 0.5 * (T[t].zi + T[t].zr) + T[t].wi - 0.5;
+      var ci = T[t].flip ? -0.5 : 0.5;   // image of the centre (0.5, 0.5)
+      var mx = 0.5 * T[t].zr - ci * T[t].zi + T[t].wr - 0.5;
+      var my = ci * T[t].zr + 0.5 * T[t].zi + T[t].wi - 0.5;
       R = Math.max(R, Math.sqrt(mx * mx + my * my) / (1 - scale));
     }
     if (s_max < 1e-6) { return; }
@@ -251,33 +279,41 @@ var similar = {
 
     if (!this.extra){
       this.extra = new Float64Array(MAX_EXTRA * 4);
+      this.extra_flip = new Uint8Array(MAX_EXTRA);
       this.extra_side = new Float32Array(MAX_EXTRA);
       this.extra_open = new Uint8Array(MAX_EXTRA);
       this.extra_tone = new Uint8Array(MAX_EXTRA);
       this.queue_a = new Int32Array(MAX_EXTRA);
       this.queue_b = new Int32Array(MAX_EXTRA);
     }
-    var ex = this.extra, sides = this.extra_side, open = this.extra_open, tones = this.extra_tone;
+    var ex = this.extra, xf = this.extra_flip, sides = this.extra_side;
+    var open = this.extra_open, tones = this.extra_tone;
     var tone_count = [];
     for (k = 0; k < TONES; k++) { tone_count.push(0); }
     var count = 0, largest = 0;
-    var sink = this.queue_a, sunk = 0;   // where new squares wait, and how many
+    var sink = this.queue_a, sunk = 0;   // where new copies wait, and how many
 
-    // Append the visible children of the square (zr, zi, wr, wi).
-    var emit = function(zr, zi, wr, wi){
+    // Append the visible children of the copy (zr, zi, wr, wi, f).
+    var emit = function(zr, zi, wr, wi, f){
       for (var q = 0; q < n; q++){
         var tr = T[q];
-        var czr = zr * tr.zr - zi * tr.zi, czi = zr * tr.zi + zi * tr.zr;
-        var cwr = zr * tr.wr - zi * tr.wi + wr, cwi = zr * tr.wi + zi * tr.wr + wi;
+        var a = tr.zr, b = tr.zi, e = tr.wr, d = tr.wi;
+        if (f) { b = -b; d = -d; }
+        var czr = zr * a - zi * b, czi = zr * b + zi * a;
+        var cwr = zr * e - zi * d + wr, cwi = zr * d + zi * e + wi;
+        var cf = f ^ tr.flip;
         var side = Math.sqrt(czr * czr + czi * czi);
         var r = side * R;
-        var cx = cwr + 0.5 * (czr - czi), cy = cwi + 0.5 * (czi + czr);
+        // Centre of the copy: w + (z + u) / 2.
+        var cx = cwr + 0.5 * (cf ? czr + czi : czr - czi);
+        var cy = cwi + 0.5 * (cf ? czi - czr : czi + czr);
         if (cx + r < x0 || cx - r > x1 || cy + r < y0 || cy - r > y1) { continue; }
         var o = count * 4;
         ex[o] = czr; ex[o + 1] = czi; ex[o + 2] = cwr; ex[o + 3] = cwi;
+        xf[count] = cf;
         sides[count] = side;
         open[count] = 0;
-        // Ink by size: the generation a square of this side would belong to.
+        // Ink by size: the generation a copy of this side would belong to.
         var tone = side > 0 ? Math.round((Math.log(side) / log_s - shift) / generations * (TONES - 1)) : TONES - 1;
         tone = tone < 0 ? 0 : (tone > TONES - 1 ? TONES - 1 : tone);
         tones[count] = tone;
@@ -290,8 +326,8 @@ var similar = {
       }
     };
 
-    // Start from the last calculated generation: which squares are visible and large enough?
-    var sq = this.squares, ls = this.level_start;
+    // Start from the last calculated generation: which copies are visible and large enough?
+    var sq = this.squares, fl = this.flips, ls = this.level_start;
     var from = ls[ls.length - 2], to = this.total;
     if (this.base_open.length < to - from){
       this.base_open = new Uint8Array(to - from);
@@ -302,10 +338,12 @@ var similar = {
     var opens = 0;
     for (i = from; i < to; i++){
       j = i * 4;
-      var bs = Math.sqrt(sq[j] * sq[j] + sq[j + 1] * sq[j + 1]);
+      var bzr = sq[j], bzi = sq[j + 1];
+      var bs = Math.sqrt(bzr * bzr + bzi * bzi);
       if (bs <= min_side) { continue; }
       var br = bs * R;
-      var bx = sq[j + 2] + 0.5 * (sq[j] - sq[j + 1]), by = sq[j + 3] + 0.5 * (sq[j + 1] + sq[j]);
+      var bx = sq[j + 2] + 0.5 * (fl[i] ? bzr + bzi : bzr - bzi);
+      var by = sq[j + 3] + 0.5 * (fl[i] ? bzi - bzr : bzi + bzr);
       if (bx + br < x0 || bx - br > x1 || by + br < y0 || by - br > y1) { continue; }
       base_open[i - from] = 1;
       opens++;
@@ -321,11 +359,11 @@ var similar = {
     for (i = from; i < to; i++){
       if (base_open[i - from]){
         j = i * 4;
-        emit(sq[j], sq[j + 1], sq[j + 2], sq[j + 3]);
+        emit(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i]);
       }
     }
 
-    // Then from the largest squares down: each pass expands those above a
+    // Then from the largest copies down: each pass expands those above a
     // threshold, and the threshold falls until it reaches the finest size.
     // If the budget runs out, the detail stops at an even size everywhere.
     var cur = this.queue_a, waiting = sunk;
@@ -350,7 +388,7 @@ var similar = {
         if (sides[i] > threshold){
           open[i] = 1;
           j = i * 4;
-          emit(ex[j], ex[j + 1], ex[j + 2], ex[j + 3]);
+          emit(ex[j], ex[j + 1], ex[j + 2], ex[j + 3], xf[i]);
         } else {
           sink[sunk++] = i;
         }
@@ -365,29 +403,41 @@ var similar = {
 
   // Bounding box of what will be drawn (cheap; no copies of the data).
   compute_bounds: function(){
-    var sq = this.squares;
+    var kind = SHAPES[this.shape] || 0;
     var min_x = Infinity, min_y = Infinity, max_x = -Infinity, max_y = -Infinity;
 
-    var scan = function(from, to){
-      for (var j = from * 4, end = to * 4; j < end; j += 4){
-        var zr = sq[j], zi = sq[j + 1], x = sq[j + 2], y = sq[j + 3];
-        // The four corners: w, w+z, w+z+iz, w+iz
-        var lo = Math.min(x, x + zr, x + zr - zi, x - zi);
-        var hi = Math.max(x, x + zr, x + zr - zi, x - zi);
-        if (lo < min_x) { min_x = lo; }
-        if (hi > max_x) { max_x = hi; }
-        lo = Math.min(y, y + zi, y + zi + zr, y + zr);
-        hi = Math.max(y, y + zi, y + zi + zr, y + zr);
-        if (lo < min_y) { min_y = lo; }
-        if (hi > max_y) { max_y = hi; }
+    var add = function(x, y){
+      if (x < min_x) { min_x = x; }
+      if (x > max_x) { max_x = x; }
+      if (y < min_y) { min_y = y; }
+      if (y > max_y) { max_y = y; }
+    };
+    // The points of one copy, for the given kind of shape.
+    var points = function(zr, zi, x, y, flip, shape){
+      add(x, y);
+      if (shape === 3) { return; }
+      add(x + zr, y + zi);
+      if (shape === 1) { return; }
+      var ux = flip ? zi : -zi, uy = flip ? -zr : zr;
+      if (shape === 2){
+        add(x + zr / 2 + TRIANGLE_HEIGHT * ux, y + zi / 2 + TRIANGLE_HEIGHT * uy);
+        return;
       }
+      add(x + zr + ux, y + zi + uy);
+      add(x + ux, y + uy);
     };
 
-    var first = this.visible_levels()[0];
-    scan(this.level_start[first], this.total);
-    // Keep the handles (first-generation squares) in view too.
-    if (this.show_handles && first > 1){
-      scan(this.level_start[1], this.level_start[2]);
+    var sq = this.squares, fl = this.flips;
+    for (var i = this.level_start[this.visible_levels()[0]]; i < this.total; i++){
+      var j = i * 4;
+      points(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i], kind);
+    }
+    // Keep the handles (the frames of the transforms) in view too.
+    if (this.show_handles){
+      for (var t = 0; t < this.iteration.length; t++){
+        var T = this.iteration[t];
+        points(T.zr, T.zi, T.wr, T.wi, T.flip, 0);
+      }
     }
 
     this.min_x = min_x; this.min_y = min_y;
@@ -398,8 +448,8 @@ var similar = {
 
   // Pixels per unit that fit the whole drawing in the canvas.
   fit_scale: function(){
-    var w = Math.max(this.max_x - this.min_x, 1e-9);
-    var h = Math.max(this.max_y - this.min_y, 1e-9);
+    var w = Math.max(this.max_x - this.min_x, 1e-6);
+    var h = Math.max(this.max_y - this.min_y, 1e-6);
     var fit = Math.min((this.canvas_w - 2 * MARGIN) / w, (this.canvas_h - 2 * MARGIN) / h);
     return Math.max(fit, 1e-9);
   },
@@ -437,10 +487,11 @@ var similar = {
     var s = Math.min(fit * MAX_ZOOM, this.screen_scale() * factor);
 
     if (s <= fit * 1.0001){   // zoomed all the way out: back to "fit"
-      this.view.fit = true;
+      this.reset_view();
       return;
     }
     this.view.fit = false;
+    this.view.held = false;
     this.view.s = s;
     this.view.x = p.x - (mx - this.canvas_w / 2) / s;
     this.view.y = p.y + (my - this.canvas_h / 2) / s;
@@ -466,7 +517,7 @@ var similar = {
     return true;
   },
 
-  // ---- Handles: the first-generation squares, one per transform ----
+  // ---- Handles: the frame of each transform (where it puts the unit square) ----
 
   // Which handle is under (mx, my)? Returns {index, part: "move" | "corner"} or null.
   handle_at: function(mx, my){
@@ -486,11 +537,13 @@ var similar = {
         return { index: i, part: "corner" };
       }
 
-      // Anywhere inside the square moves it: (p - w) / z must lie in the unit square.
+      // Anywhere inside the frame moves it: (p - w) / z must lie in the unit
+      // square (or in its mirror image, for a mirrored transform).
       if (side > 0){
         var ux = p.x - t.wr, uy = p.y - t.wi;
         var a = (ux * t.zr + uy * t.zi) / (side * side);
         var b = (uy * t.zr - ux * t.zi) / (side * side);
+        if (t.flip) { b = -b; }
         if (a >= 0 && a <= 1 && b >= 0 && b <= 1 && side < best_side){
           best = { index: i, part: "move" };
           best_side = side;
@@ -535,10 +588,12 @@ var similar = {
     ctx.lineWidth = dpr;
     ctx.setLineDash([]);
     this.refine();
+    var kind = SHAPES[this.shape] || 0;
     var runs = this.runs();
     for (var i = 0; i < runs.length; i++){
       ctx.strokeStyle = runs[i].colour;
-      this.trace(ctx, runs[i], s, ox, oy, pw, ph);
+      ctx.fillStyle = runs[i].colour;
+      this.trace(ctx, runs[i], kind, s, ox, oy, pw, ph, dpr);
     }
 
     if (this.show_handles && !plain){
@@ -546,10 +601,12 @@ var similar = {
     }
   },
 
-  // Outline the squares of a run, skipping those outside the canvas (pw x ph).
-  trace: function(ctx, run, s, ox, oy, pw, ph){
-    var sq = run.buf, flags = run.flags, off = run.off;
+  // Draw the copies of a run, skipping those outside the canvas (pw x ph).
+  // On screen a copy starts at (X, Y), runs along (dx, -dy) and rises along (ux, uy).
+  trace: function(ctx, run, kind, s, ox, oy, pw, ph, dpr){
+    var sq = run.buf, fl = run.flip, flags = run.flags, off = run.off;
     var tones = run.tones || null, tone = run.tone;
+    var dot = kind === 3, half = dpr;   // a dot is 2 pixels across
     var drawn = 0;
     ctx.beginPath();
     for (var i = run.from; i < run.to; i++){
@@ -559,31 +616,46 @@ var similar = {
       var dx = sq[j] * s, dy = sq[j + 1] * s;
       var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
 
-      // Centre of the square and (an upper bound of) its half diagonal.
-      var cx = X + (dx - dy) * 0.5, cy = Y - (dy + dx) * 0.5;
-      var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
-      if (cx + r < 0 || cx - r > pw || cy + r < 0 || cy - r > ph) { continue; }
-
-      ctx.moveTo(X, Y);
-      if (r < TINY){
-        // Too small to see its shape: one diagonal is enough.
-        ctx.lineTo(X + dx - dy, Y - dy - dx);
+      if (dot){
+        if (X < -half || X > pw + half || Y < -half || Y > ph + half) { continue; }
+        ctx.rect(X - half, Y - half, 2 * half, 2 * half);
       } else {
-        ctx.lineTo(X + dx, Y - dy);
-        ctx.lineTo(X + dx - dy, Y - dy - dx);
-        ctx.lineTo(X - dy, Y - dx);
-        ctx.closePath();
+        var ux = fl[i] ? dy : -dy, uy = fl[i] ? dx : -dx;
+
+        // Centre of the copy's square and (an upper bound of) its half diagonal.
+        var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
+        var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
+        if (cx + r < 0 || cx - r > pw || cy + r < 0 || cy - r > ph) { continue; }
+
+        ctx.moveTo(X, Y);
+        if (kind === 1){
+          ctx.lineTo(X + dx, Y - dy);
+        } else if (r < TINY){
+          // Too small to see its shape: one stroke across is enough.
+          ctx.lineTo(X + dx + ux, Y - dy + uy);
+        } else if (kind === 0){
+          ctx.lineTo(X + dx, Y - dy);
+          ctx.lineTo(X + dx + ux, Y - dy + uy);
+          ctx.lineTo(X + ux, Y + uy);
+          ctx.closePath();
+        } else {
+          ctx.lineTo(X + dx, Y - dy);
+          ctx.lineTo(X + dx * 0.5 + TRIANGLE_HEIGHT * ux, Y - dy * 0.5 + TRIANGLE_HEIGHT * uy);
+          ctx.closePath();
+        }
       }
       if (++drawn === STROKE_CHUNK){
-        ctx.stroke();
+        if (dot) { ctx.fill(); } else { ctx.stroke(); }
         ctx.beginPath();
         drawn = 0;
       }
     }
-    if (drawn) { ctx.stroke(); }
+    if (drawn){
+      if (dot) { ctx.fill(); } else { ctx.stroke(); }
+    }
   },
 
-  // Dashed outline, name and corner dot for each transform.
+  // Dashed frame, name and corner dot for each transform.
   paint_handles: function(ctx, s, ox, oy, dpr){
     ctx.font = "italic " + (13 * dpr) + "px Georgia, 'Times New Roman', serif";
     ctx.textAlign = "center";
@@ -592,6 +664,7 @@ var similar = {
     for (var i = 0; i < this.iteration.length; i++){
       var t = this.iteration[i];
       var dx = t.zr * s, dy = t.zi * s;
+      var ux = t.flip ? dy : -dy, uy = t.flip ? dx : -dx;
       var X = t.wr * s + ox, Y = oy - t.wi * s;
 
       ctx.strokeStyle = HANDLE_INK;
@@ -600,8 +673,8 @@ var similar = {
       ctx.beginPath();
       ctx.moveTo(X, Y);
       ctx.lineTo(X + dx, Y - dy);
-      ctx.lineTo(X + dx - dy, Y - dy - dx);
-      ctx.lineTo(X - dy, Y - dx);
+      ctx.lineTo(X + dx + ux, Y - dy + uy);
+      ctx.lineTo(X + ux, Y + uy);
       ctx.closePath();
       ctx.stroke();
       ctx.setLineDash([]);
@@ -613,7 +686,7 @@ var similar = {
 
       if (Math.abs(dx) + Math.abs(dy) > 30 * dpr){
         var label = "T" + (i + 1);
-        var lx = X + (dx - dy) * 0.5, ly = Y - (dy + dx) * 0.5;
+        var lx = X + (dx + ux) * 0.5, ly = Y + (uy - dy) * 0.5;
         ctx.strokeStyle = PAPER;
         ctx.lineWidth = 4 * dpr;
         ctx.strokeText(label, lx, ly);
@@ -629,13 +702,14 @@ var similar = {
     var c = this.view_centre();
     var ox = w / 2 - c.x * s;
     var oy = h / 2 + c.y * s;
+    var kind = SHAPES[this.shape] || 0;
     var f = function(v){ return Math.round(v * 100) / 100; };
 
     var out = [
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h +
         '" viewBox="0 0 ' + w + " " + h + '">',
       '<rect width="100%" height="100%" fill="' + PAPER + '"/>',
-      '<g fill="none" stroke-width="1">'
+      kind === 3 ? '<g stroke="none">' : '<g fill="none" stroke-width="1">'
     ];
 
     this.refine();
@@ -648,16 +722,27 @@ var similar = {
         var j = k * 4;
         var dx = sq[j] * s, dy = sq[j + 1] * s;
         var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
-        var cx = X + (dx - dy) * 0.5, cy = Y - (dy + dx) * 0.5;
+        var ux = run.flip[k] ? dy : -dy, uy = run.flip[k] ? dx : -dx;
+
+        if (kind === 3){
+          if (X < 0 || X > w || Y < 0 || Y > h) { continue; }
+          d.push("M" + f(X - 1) + " " + f(Y - 1) + "h2v2h-2z");
+          continue;
+        }
+        var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
         var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
         if (cx + r < 0 || cx - r > w || cy + r < 0 || cy - r > h) { continue; }
-        d.push("M" + f(X) + " " + f(Y) +
-               "l" + f(dx) + " " + f(-dy) +
-               "l" + f(-dy) + " " + f(-dx) +
-               "l" + f(-dx) + " " + f(dy) + "z");
+
+        var path = "M" + f(X) + " " + f(Y) + "l" + f(dx) + " " + f(-dy);
+        if (kind === 0){
+          path += "l" + f(ux) + " " + f(uy) + "l" + f(-dx) + " " + f(dy) + "z";
+        } else if (kind === 2){
+          path += "l" + f(TRIANGLE_HEIGHT * ux - dx * 0.5) + " " + f(TRIANGLE_HEIGHT * uy + dy * 0.5) + "z";
+        }
+        d.push(path);
       }
       if (d.length){
-        out.push('<path stroke="' + run.colour + '" d="' + d.join("") + '"/>');
+        out.push("<path " + (kind === 3 ? "fill" : "stroke") + '="' + run.colour + '" d="' + d.join("") + '"/>');
       }
     }
     out.push("</g>", "</svg>");

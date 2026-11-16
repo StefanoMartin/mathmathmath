@@ -16,13 +16,24 @@
     <div id="panel">
       <h1>Similar Fractal</h1>
       <p class="intro">
-        A square is copied by each transform below: moved, turned and
+        A shape is copied by each transform below: moved, turned and
         shrunk. The copies are copied again, generation after generation.
       </p>
 
       <fieldset>
         <legend>Generations</legend>
         <table class="controls">
+          <tr>
+            <th>Shape</th>
+            <td colspan="2">
+              <select id="shape" title="The shape that is copied">
+                <option value="square">Square</option>
+                <option value="line">Line</option>
+                <option value="triangle">Triangle</option>
+                <option value="dot">Dot</option>
+              </select>
+            </td>
+          </tr>
           <tr class="row">
             <th>Repeat</th>
             <td><input class="number_slide" type="number" value="7" min="0" id="repetition"></td>
@@ -78,6 +89,11 @@
         </p>
         <ul id="favourites"></ul>
         <p id="favourites_note" class="hint"></p>
+        <p class="buttons">
+          <button type="button" id="favouritesToFile" title="Save all favourites as one file">Save to file</button>
+          <button type="button" id="favouritesFromFile" title="Add the favourites of a file to this list">Load from file</button>
+          <input type="file" id="favourites_file" accept=".json,application/json" hidden>
+        </p>
       </fieldset>
 
       <fieldset>
