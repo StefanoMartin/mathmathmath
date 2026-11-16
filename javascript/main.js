@@ -16,13 +16,17 @@ var PRESETS = [
     t: [[0, 0, 0, 0.5], [0.5, 0, 0, 0.5], [0.25, 0.433, 0, 0.5]] },
   { name: "Sierpinski arrowhead", shape: "line", repeat: 7, last: true,
     t: [[0, 0, 60, 0.5, 1], [0.25, 0.433, 0, 0.5], [0.75, 0.433, 300, 0.5, 1]] },
+  { name: "Tree of hearts", shape: "heart", repeat: 9, last: false, filled: true,
+    t: [[0, 1, 45, 0.707], [0.5, 1.5, 315, 0.707]] },
+  { name: "Heart spiral", shape: "heart", repeat: 40, last: false, filled: true,
+    t: [[0.15, 0.25, 20, 0.9]] },
   { name: "Vicsek cross", shape: "square", repeat: 5, last: false,
     t: [[0.333, 0, 0, 0.333], [0, 0.333, 0, 0.333], [0.333, 0.333, 0, 0.333],
         [0.667, 0.333, 0, 0.333], [0.333, 0.667, 0, 0.333]] }
 ];
 
-// Points that make up one copy of each shape (for the counter).
-var SHAPE_POINTS = { square: 4, line: 2, triangle: 3, dot: 1 };
+// Most points in a custom shape.
+var MAX_SHAPE_POINTS = 64;
 
 // Most transforms accepted from a link.
 var MAX_TRANSFORMS = 12;
@@ -82,8 +86,26 @@ var validTransform = function(t){
 };
 
 var validShape = function(name){
-  return SHAPE_POINTS.hasOwnProperty(name) ? name : "square";
+  return name === "custom" || SHAPE_LIBRARY.hasOwnProperty(name) ? name : "square";
 };
+
+// A custom shape: {points: [[x, y], ...] inside the unit square, closed}.
+// Anything else gives null.
+var validCustom = function(c){
+  if (!c || !Array.isArray(c.points)) { return null; }
+  var points = c.points.filter(function(p){
+    return Array.isArray(p) && p.length === 2 &&
+      p.every(function(v){ return typeof v === "number" && isFinite(v); });
+  }).slice(0, MAX_SHAPE_POINTS).map(function(p){
+    return [roundTo(Math.min(1, Math.max(0, p[0])), 3), roundTo(Math.min(1, Math.max(0, p[1])), 3)];
+  });
+  return { points: points, closed: c.closed !== false };
+};
+
+// The custom shape being drawn (kept while another shape is shown).
+var custom_shape = { points: [], closed: true };
+// The last shape from the list shown before "Custom" (a custom shape starts from it).
+var last_library_shape = "square";
 
 // ---- Drawing ----
 
@@ -93,7 +115,17 @@ var build = function(){
   similar.only_last    = byId("only_last").checked;
   similar.colored      = byId("colored").checked;
   similar.show_handles = byId("show_handles").checked;
-  similar.shape        = validShape(byId("shape").value);
+  similar.filled       = byId("filled").checked;
+
+  var shape = validShape(byId("shape").value);
+  if (shape === "custom"){
+    similar.set_shape(custom_shape.points, custom_shape.closed);
+  } else {
+    similar.set_shape(SHAPE_LIBRARY[shape].points, SHAPE_LIBRARY[shape].closed);
+    last_library_shape = shape;
+  }
+  byId("shape_editor").hidden = shape !== "custom";
+  if (shape === "custom") { paintPad(); }
 
   similar.iteration = [];
   readTransforms().forEach(function(t){
@@ -163,7 +195,7 @@ var updateZoom = function(){
 // Count the points of every copy in all generations calculated,
 // including the extra ones added for a zoomed-in view.
 var updatePointCount = function(){
-  var points = (similar.total + similar.extra_count) * SHAPE_POINTS[similar.shape];
+  var points = (similar.total + similar.extra_count) * similar.shape_points();
   byId("point_count").textContent = formatCount(points) + " points calculated";
 };
 
@@ -175,6 +207,8 @@ var readState = function(){
     last: byId("only_last").checked,
     colour: byId("colored").checked,
     shape: validShape(byId("shape").value),
+    custom: validShape(byId("shape").value) === "custom" ? validCustom(custom_shape) : undefined,
+    filled: byId("filled").checked,
     transforms: readTransforms()
   };
 };
@@ -187,16 +221,26 @@ var applyState = function(state){
   if (state.last !== undefined)   { byId("only_last").checked = state.last; }
   if (state.colour !== undefined) { byId("colored").checked = state.colour; }
   if (state.shape !== undefined)  { byId("shape").value = validShape(state.shape); }
+  if (state.custom){
+    custom_shape = validCustom(state.custom);
+    byId("pad_closed").checked = custom_shape.closed;
+  }
+  if (state.filled !== undefined) { byId("filled").checked = state.filled; }
   similar.reset_view();
 };
 
 // r = repeat, l = last generation only, c = colour, s = shape (when not a square),
-// t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
+// p = points of a custom shape (x,y;x,y...), k = 0 for an open custom shape,
+// f = 1 for filled shapes, t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
 var encodeState = function(state){
+  var custom = state.shape === "custom" && state.custom ? state.custom : null;
   return "r=" + state.repeat +
     "&l=" + (state.last ? 1 : 0) +
     "&c=" + (state.colour ? 1 : 0) +
     (state.shape && state.shape !== "square" ? "&s=" + state.shape : "") +
+    (custom ? "&p=" + custom.points.map(function(p){ return p.join(","); }).join(";") : "") +
+    (custom && !custom.closed ? "&k=0" : "") +
+    (state.filled ? "&f=1" : "") +
     "&t=" + state.transforms.map(function(t){ return compactTransform(t).join(","); }).join(";");
 };
 
@@ -204,7 +248,8 @@ var decodeState = function(hash){
   var text = hash.replace(/^#/, "");
   try { text = decodeURIComponent(text); } catch (e) { return null; }
 
-  var state = { repeat: 7, last: false, colour: false, shape: "square", transforms: [] };
+  var state = { repeat: 7, last: false, colour: false, shape: "square", filled: false, transforms: [] };
+  var custom = { points: [], closed: true };
   var has_transforms = false;
   text.split("&").forEach(function(part){
     var i = part.indexOf("=");
@@ -219,6 +264,12 @@ var decodeState = function(hash){
       state.colour = value === "1";
     } else if (key === "s"){
       state.shape = validShape(value);
+    } else if (key === "p"){
+      custom.points = value.split(";").map(function(item){ return item.split(",").map(parseFloat); });
+    } else if (key === "k"){
+      custom.closed = value !== "0";
+    } else if (key === "f"){
+      state.filled = value === "1";
     } else if (key === "t"){
       has_transforms = true;
       value.split(";").forEach(function(item){
@@ -229,6 +280,7 @@ var decodeState = function(hash){
   });
   if (!has_transforms) { return null; }
   state.transforms = state.transforms.slice(0, MAX_TRANSFORMS);
+  if (state.shape === "custom") { state.custom = validCustom(custom); }
   return state;
 };
 
@@ -262,8 +314,9 @@ var FAVOURITES_KEY = "similar-fractal.favourites";
 
 // Keep only the well-formed entries of a list of favourites: it may come from
 // a file, or from a store that was edited by hand.
-// An entry is {name, repeat, shape, last, t: [[x, y, rotation, scale(, 1)], ...]};
-// "last" (show the last generation only) is missing from favourites saved before it existed.
+// An entry is {name, repeat, shape, custom, last, filled, t: [[x, y, rotation, scale(, 1)], ...]};
+// "custom" is only there for a custom shape; "last" and "filled" are missing from
+// favourites saved before they existed.
 var cleanFavourites = function(list){
   if (!Array.isArray(list)) { return []; }
   var good = [];
@@ -274,7 +327,9 @@ var cleanFavourites = function(list){
       name: item.name.slice(0, 40),
       repeat: isFinite(repeat) && repeat >= 0 ? repeat : 7,
       shape: validShape(item.shape),
+      custom: item.shape === "custom" ? validCustom(item.custom) || { points: [], closed: true } : undefined,
       last: typeof item.last === "boolean" ? item.last : undefined,
+      filled: typeof item.filled === "boolean" ? item.filled : undefined,
       t: item.t.filter(validTransform).slice(0, MAX_TRANSFORMS).map(compactTransform)
     });
   });
@@ -311,7 +366,8 @@ var current_pick = null;
 // What makes a figure, for comparing with the picked entry.
 var figureKey = function(){
   var state = readState();
-  return JSON.stringify([state.repeat, state.shape, state.last, state.transforms.map(compactTransform)]);
+  return JSON.stringify([state.repeat, state.shape, state.custom || null, state.last, state.filled,
+                         state.transforms.map(compactTransform)]);
 };
 
 // The figure is recorded at the next redraw, after Repeat has been kept within its limit.
@@ -407,7 +463,8 @@ var saveFavourite = function(){
 
   var state = readState();
   putFavourite(list, {
-    name: name, repeat: state.repeat, shape: state.shape, last: state.last,
+    name: name, repeat: state.repeat, shape: state.shape, custom: state.custom,
+    last: state.last, filled: state.filled,
     t: state.transforms.map(compactTransform)
   });
 
@@ -424,7 +481,8 @@ var saveFavourite = function(){
 var showFavourite = function(index){
   var item = loadFavourites()[index];
   if (!item) { return; }
-  applyState({ repeat: item.repeat, shape: item.shape, last: item.last, transforms: item.t });
+  applyState({ repeat: item.repeat, shape: item.shape, custom: item.custom,
+                last: item.last, filled: item.filled, transforms: item.t });
   pickEntry("f", index, item.name);
   scheduleBuild();
 };
@@ -432,7 +490,7 @@ var showFavourite = function(index){
 var showPreset = function(index){
   var p = PRESETS[index];
   if (!p) { return; }
-  applyState({ repeat: p.repeat, shape: p.shape, last: p.last, transforms: p.t });
+  applyState({ repeat: p.repeat, shape: p.shape, last: p.last, filled: !!p.filled, transforms: p.t });
   pickEntry("p", index, p.name);
   scheduleBuild();
 };
@@ -561,6 +619,115 @@ var colourEvents = function(){
     });
   });
   byId("line_width").addEventListener("change", applyColours);
+};
+
+// ---- Shapes: the list, and the pad to draw a custom one ----
+
+// Points snap to a grid of this many steps across the square.
+var PAD_GRID = 20;
+
+var paintPad = function(){
+  var pad = byId("shape_pad");
+  var dpr = window.devicePixelRatio || 1;
+  var size = pad.clientWidth || 140;
+  if (pad.width !== Math.round(size * dpr)){
+    pad.width = Math.round(size * dpr);
+    pad.height = Math.round(size * dpr);
+  }
+  var ctx = pad.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+
+  // Margin, so that points on the edge of the square stay visible.
+  var m = 8, w = size - 2 * m;
+  var X = function(x){ return m + x * w; };
+  var Y = function(y){ return m + (1 - y) * w; };
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#e4dfd2";
+  ctx.beginPath();
+  for (var k = 1; k < 10; k++){
+    ctx.moveTo(X(k / 10), Y(0)); ctx.lineTo(X(k / 10), Y(1));
+    ctx.moveTo(X(0), Y(k / 10)); ctx.lineTo(X(1), Y(k / 10));
+  }
+  ctx.stroke();
+  ctx.strokeStyle = "#8c8676";
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(X(0), Y(1), w, w);
+  ctx.setLineDash([]);
+
+  var pts = custom_shape.points;
+  if (pts.length > 1){
+    ctx.strokeStyle = "#2a2a2a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(X(pts[0][0]), Y(pts[0][1]));
+    for (k = 1; k < pts.length; k++) { ctx.lineTo(X(pts[k][0]), Y(pts[k][1])); }
+    ctx.stroke();
+    if (custom_shape.closed && pts.length > 2){
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(X(pts[pts.length - 1][0]), Y(pts[pts.length - 1][1]));
+      ctx.lineTo(X(pts[0][0]), Y(pts[0][1]));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  pts.forEach(function(p, i){
+    ctx.fillStyle = i === 0 ? "#2f6b3a" : "#2a2a2a";
+    ctx.beginPath();
+    ctx.arc(X(p[0]), Y(p[1]), i === 0 ? 3.5 : 2.5, 0, 2 * Math.PI);
+    ctx.fill();
+  });
+};
+
+var shapeEvents = function(){
+  var select = byId("shape");
+  Object.keys(SHAPE_LIBRARY).forEach(function(name){
+    var option = document.createElement("option");
+    option.value = name;
+    option.textContent = SHAPE_LIBRARY[name].label;
+    select.appendChild(option);
+  });
+  var custom = document.createElement("option");
+  custom.value = "custom";
+  custom.textContent = "Custom (draw it)";
+  select.appendChild(custom);
+
+  // Starting a custom shape: begin from a simple version of the shape shown,
+  // so there is something to change (Clear starts from nothing).
+  select.addEventListener("change", function(){
+    if (select.value === "custom" && custom_shape.points.length === 0){
+      var from = SHAPE_LIBRARY[last_library_shape] || SHAPE_LIBRARY.square;
+      custom_shape = validCustom({ points: coarsen(from.points, from.closed), closed: from.closed });
+      byId("pad_closed").checked = custom_shape.closed;
+    }
+    scheduleBuild();
+  });
+
+  var pad = byId("shape_pad");
+  pad.addEventListener("click", function(e){
+    if (custom_shape.points.length >= MAX_SHAPE_POINTS) { return; }
+    var rect = pad.getBoundingClientRect();
+    var size = pad.clientWidth, m = 8, w = size - 2 * m;
+    var snap = function(v){ return Math.round(Math.min(1, Math.max(0, v)) * PAD_GRID) / PAD_GRID; };
+    var x = snap((e.clientX - rect.left - pad.clientLeft - m) / w);
+    var y = snap(1 - (e.clientY - rect.top - pad.clientTop - m) / w);
+    custom_shape.points.push([x, y]);
+    scheduleBuild();
+  });
+  byId("padUndo").addEventListener("click", function(){
+    custom_shape.points.pop();
+    scheduleBuild();
+  });
+  byId("padClear").addEventListener("click", function(){
+    custom_shape.points = [];
+    scheduleBuild();
+  });
+  byId("pad_closed").addEventListener("change", function(){
+    custom_shape.closed = byId("pad_closed").checked;
+    scheduleBuild();
+  });
 };
 
 // ---- Transform boxes ----
@@ -697,7 +864,7 @@ var panelEvents = function(){
   byId("only_last").addEventListener("change", scheduleBuild);
   byId("colored").addEventListener("change", scheduleBuild);
   byId("show_handles").addEventListener("change", scheduleBuild);
-  byId("shape").addEventListener("change", scheduleBuild);
+  byId("filled").addEventListener("change", scheduleBuild);
   document.addEventListener("change", function(e){
     if (e.target.classList.contains("mirror")) { scheduleBuild(); }
   });
@@ -846,6 +1013,7 @@ document.addEventListener("DOMContentLoaded", function(){
   panelEvents();
   figureEvents();
   colourEvents();
+  shapeEvents();
   renderFavourites();
 
   // Start from the link if it describes a figure, otherwise from the Pythagoras tree.

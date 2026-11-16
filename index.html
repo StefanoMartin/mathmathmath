@@ -28,12 +28,7 @@
           <tr>
             <th>Shape</th>
             <td colspan="2" class="wide">
-              <select id="shape" title="The shape that is copied">
-                <option value="square">Square</option>
-                <option value="line">Line</option>
-                <option value="triangle">Triangle</option>
-                <option value="dot">Dot</option>
-              </select>
+              <select id="shape" title="The shape that is copied"></select>
             </td>
           </tr>
           <tr class="row">
@@ -47,12 +42,22 @@
           </tr>
         </table>
         <p id="limit_warning" class="limit_warning"></p>
+        <div id="shape_editor" hidden>
+          <canvas id="shape_pad" title="Click to add a point"></canvas>
+          <div class="pad_tools">
+            <label><input type="checkbox" id="pad_closed" checked> Closed</label>
+            <button type="button" id="padUndo" title="Remove the last point">Undo point</button>
+            <button type="button" id="padClear" title="Remove all the points">Clear</button>
+            <p class="hint">Click in the square to add points. The square is the one the transforms copy.</p>
+          </div>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Display</legend>
         <label><input type="checkbox" id="only_last"> Last generation only</label><br>
         <label><input type="checkbox" id="colored" checked> Colour by generation</label><br>
+        <label><input type="checkbox" id="filled"> Filled shapes</label><br>
         <label><input type="checkbox" id="show_handles" checked> Show transforms on the figure</label>
         <table class="controls colours">
           <colgroup><col class="col_label"><col class="col_number"><col></colgroup>

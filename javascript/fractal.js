@@ -15,11 +15,76 @@ var MARGIN = 10;
 // Copies smaller than this (half diagonal, device pixels) are drawn as one short stroke.
 var TINY = 0.5;
 
-// The shape that is copied. All of them fit in the unit square:
-// the square itself, its bottom side, an equilateral triangle on that side,
-// or the single point at its origin.
-var SHAPES = { square: 0, line: 1, triangle: 2, dot: 3 };
-var TRIANGLE_HEIGHT = Math.sqrt(3) / 2;
+// Copies smaller than this (half diagonal, device pixels) are drawn with the
+// simplified outline of their shape.
+var DETAIL = 10;
+// Most points in a simplified outline.
+var COARSE_POINTS = 12;
+
+// ---- Shapes: outlines inside the unit square, x along the base, y upwards ----
+
+// n points around the centre, starting at angle a0 (degrees), radius r or r(k).
+var ring = function(n, a0, r){
+  var points = [];
+  for (var k = 0; k < n; k++){
+    var a = (a0 + 360 * k / n) * Math.PI / 180;
+    var rk = typeof r === "function" ? r(k) : r;
+    points.push([0.5 + rk * Math.cos(a), 0.5 + rk * Math.sin(a)]);
+  }
+  return points;
+};
+
+// Classic heart curve, scaled into the unit square with its point at the bottom.
+var heartPoints = function(){
+  var raw = [], n = 64, k;
+  for (k = 0; k < n; k++){
+    var t = 2 * Math.PI * k / n;
+    raw.push([16 * Math.pow(Math.sin(t), 3),
+              13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)]);
+  }
+  var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  raw.forEach(function(p){
+    x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+    y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+  });
+  var size = Math.max(x1 - x0, y1 - y0);
+  return raw.map(function(p){
+    return [0.5 + (p[0] - (x0 + x1) / 2) / size, 0.5 + (p[1] - (y0 + y1) / 2) / size];
+  });
+};
+
+// Archimedean spiral from the centre outwards, two and a half turns.
+var spiralPoints = function(){
+  var points = [], n = 72;
+  for (var k = 0; k <= n; k++){
+    var r = 0.5 * k / n, a = 2 * Math.PI * 2.5 * k / n;
+    points.push([0.5 + r * Math.cos(a), 0.5 + r * Math.sin(a)]);
+  }
+  return points;
+};
+
+var SHAPE_LIBRARY = {
+  square:   { label: "Square",   closed: true,  points: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+  line:     { label: "Line",     closed: false, points: [[0, 0], [1, 0]] },
+  triangle: { label: "Triangle", closed: true,  points: [[0, 0], [1, 0], [0.5, Math.sqrt(3) / 2]] },
+  circle:   { label: "Circle",   closed: true,  points: ring(48, 0, 0.5) },
+  heart:    { label: "Heart",    closed: true,  points: heartPoints() },
+  star:     { label: "Star",     closed: true,  points: ring(10, 90, function(k){ return k % 2 ? 0.2 : 0.5; }) },
+  hexagon:  { label: "Hexagon",  closed: true,  points: ring(6, 0, 0.5) },
+  spiral:   { label: "Spiral",   closed: false, points: spiralPoints() },
+  dot:      { label: "Dot",      closed: false, points: [[0, 0]] }
+};
+
+// Every few points of an outline, at most COARSE_POINTS (an open one keeps its last point).
+var coarsen = function(points, closed){
+  if (points.length <= COARSE_POINTS) { return points; }
+  var step = Math.ceil(points.length / COARSE_POINTS), out = [];
+  for (var k = 0; k < points.length; k += step) { out.push(points[k]); }
+  if (!closed && out[out.length - 1] !== points[points.length - 1]){
+    out.push(points[points.length - 1]);
+  }
+  return out;
+};
 
 // Colour schemes: the inks of the first, middle and last generation, and the
 // paper they are drawn on. Generations in between are blended (see setColours).
@@ -62,13 +127,14 @@ var COLOUR_TABLE = [];       // 256 blended colours, first to last generation
  * view. Those live in a second buffer, "extra".
  */
 var similar = {
-  shape: "square",
   repetition: 10,
   iteration: [],
   only_last: false,
   colored: true,
   show_handles: true,
+  filled: false,           // fill closed shapes instead of outlining them
   line_width: 1.5,         // in CSS pixels
+  shape: null,             // see set_shape()
 
   squares: new Float64Array(4),
   flips: new Uint8Array(1),
@@ -100,6 +166,39 @@ var similar = {
   view: { fit: true, held: false, s: 1, x: 0, y: 0 },
   canvas_w: 1,
   canvas_h: 1,
+
+  // The outline copied: points inside the unit square, closed or not.
+  // A single point is drawn as a dot.
+  set_shape: function(points, closed){
+    var empty = !points.length;            // nothing to draw (a custom shape not drawn yet)
+    var pts = empty ? [[0.5, 0.5]] : points;
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    pts.forEach(function(p){
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+      y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+    });
+    var split = function(list){
+      return {
+        x: Float64Array.from(list.map(function(p){ return p[0]; })),
+        y: Float64Array.from(list.map(function(p){ return p[1]; }))
+      };
+    };
+    var dot = pts.length === 1;
+    this.shape = {
+      full: split(pts),
+      coarse: split(coarsen(pts, closed)),
+      closed: !dot && pts.length > 2 && !!closed,
+      dot: dot,
+      empty: empty,
+      // Corners of the bounding box, for the bounds of the drawing.
+      box: dot ? [[pts[0][0], pts[0][1]]] : [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+    };
+  },
+
+  // Points of one copy of the shape (for the counter).
+  shape_points: function(){
+    return this.shape.empty ? 0 : this.shape.full.x.length;
+  },
 
   // x, y in sides of the seed square; rotation in degrees; size is the scale
   // factor; mirror flips the copy over before it is turned.
@@ -415,7 +514,7 @@ var similar = {
 
   // Bounding box of what will be drawn (cheap; no copies of the data).
   compute_bounds: function(){
-    var kind = SHAPES[this.shape] || 0;
+    var box = this.shape.box;
     var min_x = Infinity, min_y = Infinity, max_x = -Infinity, max_y = -Infinity;
 
     var add = function(x, y){
@@ -424,31 +523,27 @@ var similar = {
       if (y < min_y) { min_y = y; }
       if (y > max_y) { max_y = y; }
     };
-    // The points of one copy, for the given kind of shape.
-    var points = function(zr, zi, x, y, flip, shape){
-      add(x, y);
-      if (shape === 3) { return; }
-      add(x + zr, y + zi);
-      if (shape === 1) { return; }
+    // The given points (in the unit square) of one copy.
+    var points = function(zr, zi, x, y, flip, list){
       var ux = flip ? zi : -zi, uy = flip ? -zr : zr;
-      if (shape === 2){
-        add(x + zr / 2 + TRIANGLE_HEIGHT * ux, y + zi / 2 + TRIANGLE_HEIGHT * uy);
-        return;
+      for (var k = 0; k < list.length; k++){
+        var px = list[k][0], py = list[k][1];
+        add(x + px * zr + py * ux, y + px * zi + py * uy);
       }
-      add(x + zr + ux, y + zi + uy);
-      add(x + ux, y + uy);
     };
 
+    // The corners of the shape's bounding box are enough: they hold the shape.
     var sq = this.squares, fl = this.flips;
     for (var i = this.level_start[this.visible_levels()[0]]; i < this.total; i++){
       var j = i * 4;
-      points(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i], kind);
+      points(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i], box);
     }
     // Keep the handles (the frames of the transforms) in view too.
     if (this.show_handles){
+      var frame = [[0, 0], [1, 0], [1, 1], [0, 1]];
       for (var t = 0; t < this.iteration.length; t++){
         var T = this.iteration[t];
-        points(T.zr, T.zi, T.wr, T.wi, T.flip, 0);
+        points(T.zr, T.zi, T.wr, T.wi, T.flip, frame);
       }
     }
 
@@ -600,12 +695,11 @@ var similar = {
     ctx.lineWidth = dpr * this.line_width;
     ctx.setLineDash([]);
     this.refine();
-    var kind = SHAPES[this.shape] || 0;
     var runs = this.runs();
     for (var i = 0; i < runs.length; i++){
       ctx.strokeStyle = runs[i].colour;
       ctx.fillStyle = runs[i].colour;
-      this.trace(ctx, runs[i], kind, s, ox, oy, pw, ph, dpr);
+      this.trace(ctx, runs[i], s, ox, oy, pw, ph, dpr);
     }
 
     if (this.show_handles && !plain){
@@ -614,11 +708,19 @@ var similar = {
   },
 
   // Draw the copies of a run, skipping those outside the canvas (pw x ph).
-  // On screen a copy starts at (X, Y), runs along (dx, -dy) and rises along (ux, uy).
-  trace: function(ctx, run, kind, s, ox, oy, pw, ph, dpr){
+  // On screen a copy starts at (X, Y), runs along (dx, -dy) and rises along (ux, uy):
+  // the shape point (px, py) lands at (X + px*dx + py*ux, Y - px*dy + py*uy).
+  trace: function(ctx, run, s, ox, oy, pw, ph, dpr){
     var sq = run.buf, fl = run.flip, flags = run.flags, off = run.off;
     var tones = run.tones || null, tone = run.tone;
-    var dot = kind === 3, half = dpr * Math.max(1, this.line_width);   // a dot is 2 line widths across
+    var shape = this.shape;
+    if (shape.empty) { return; }
+    var dot = shape.dot, half = dpr * Math.max(1, this.line_width);   // a dot is 2 line widths across
+    var fill = dot || (this.filled && shape.closed);
+    var closed = shape.closed;
+    var fx = shape.full.x, fy = shape.full.y, cxs = shape.coarse.x, cys = shape.coarse.y;
+    var px0 = fx[0], py0 = fy[0];
+    var detail = DETAIL * dpr;
     var drawn = 0;
     ctx.beginPath();
     for (var i = run.from; i < run.to; i++){
@@ -627,43 +729,49 @@ var similar = {
       var j = i * 4;
       var dx = sq[j] * s, dy = sq[j + 1] * s;
       var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
+      var ux = fl[i] ? dy : -dy, uy = fl[i] ? dx : -dx;
 
       if (dot){
-        if (X < -half || X > pw + half || Y < -half || Y > ph + half) { continue; }
-        ctx.rect(X - half, Y - half, 2 * half, 2 * half);
+        var DX = X + px0 * dx + py0 * ux, DY = Y - px0 * dy + py0 * uy;
+        if (DX < -half || DX > pw + half || DY < -half || DY > ph + half) { continue; }
+        ctx.rect(DX - half, DY - half, 2 * half, 2 * half);
       } else {
-        var ux = fl[i] ? dy : -dy, uy = fl[i] ? dx : -dx;
-
         // Centre of the copy's square and (an upper bound of) its half diagonal.
         var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
         var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
         if (cx + r < 0 || cx - r > pw || cy + r < 0 || cy - r > ph) { continue; }
 
-        ctx.moveTo(X, Y);
-        if (kind === 1){
-          ctx.lineTo(X + dx, Y - dy);
-        } else if (r < TINY){
-          // Too small to see its shape: one stroke across is enough.
-          ctx.lineTo(X + dx + ux, Y - dy + uy);
-        } else if (kind === 0){
-          ctx.lineTo(X + dx, Y - dy);
-          ctx.lineTo(X + dx + ux, Y - dy + uy);
-          ctx.lineTo(X + ux, Y + uy);
-          ctx.closePath();
+        if (r < TINY){
+          // Too small to see its shape.
+          if (fill){
+            ctx.rect(cx - 0.5, cy - 0.5, 1, 1);
+          } else {
+            ctx.moveTo(X, Y);
+            ctx.lineTo(X + dx + ux, Y - dy + uy);
+          }
         } else {
-          ctx.lineTo(X + dx, Y - dy);
-          ctx.lineTo(X + dx * 0.5 + TRIANGLE_HEIGHT * ux, Y - dy * 0.5 + TRIANGLE_HEIGHT * uy);
-          ctx.closePath();
+          // Small copies use the simplified outline.
+          var xs = r < detail ? cxs : fx, ys = r < detail ? cys : fy, n = xs.length;
+          // A mirrored copy is traced backwards, so all filled copies turn the
+          // same way and overlapping ones add up instead of cancelling out.
+          var back = fill && fl[i] === 1;
+          var k = back ? n - 1 : 0, step = back ? -1 : 1;
+          ctx.moveTo(X + xs[k] * dx + ys[k] * ux, Y - xs[k] * dy + ys[k] * uy);
+          for (var m = 1; m < n; m++){
+            k += step;
+            ctx.lineTo(X + xs[k] * dx + ys[k] * ux, Y - xs[k] * dy + ys[k] * uy);
+          }
+          if (closed) { ctx.closePath(); }
         }
       }
       if (++drawn === STROKE_CHUNK){
-        if (dot) { ctx.fill(); } else { ctx.stroke(); }
+        if (fill) { ctx.fill(); } else { ctx.stroke(); }
         ctx.beginPath();
         drawn = 0;
       }
     }
     if (drawn){
-      if (dot) { ctx.fill(); } else { ctx.stroke(); }
+      if (fill) { ctx.fill(); } else { ctx.stroke(); }
     }
   },
 
@@ -714,48 +822,54 @@ var similar = {
     var c = this.view_centre();
     var ox = w / 2 - c.x * s;
     var oy = h / 2 + c.y * s;
-    var kind = SHAPES[this.shape] || 0;
+    var shape = this.shape;
+    var fill = shape.dot || (this.filled && shape.closed);
     var f = function(v){ return Math.round(v * 100) / 100; };
 
     var out = [
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h +
         '" viewBox="0 0 ' + w + " " + h + '">',
       '<rect width="100%" height="100%" fill="' + PAPER + '"/>',
-      kind === 3 ? '<g stroke="none">' : '<g fill="none" stroke-width="' + this.line_width + '">'
+      fill ? '<g stroke="none">' : '<g fill="none" stroke-width="' + this.line_width +
+        '" stroke-linejoin="round">'
     ];
     var half = Math.max(1, this.line_width);
 
     this.refine();
-    var runs = this.runs();
+    var runs = shape.empty ? [] : this.runs();
     for (var i = 0; i < runs.length; i++){
       var run = runs[i], sq = run.buf, d = [];
-      for (var k = run.from; k < run.to; k++){
-        if (run.flags !== null && run.flags[k - run.off] === 1) { continue; }
-        if (run.tones && run.tones[k] !== run.tone) { continue; }
-        var j = k * 4;
+      for (var q = run.from; q < run.to; q++){
+        if (run.flags !== null && run.flags[q - run.off] === 1) { continue; }
+        if (run.tones && run.tones[q] !== run.tone) { continue; }
+        var j = q * 4;
         var dx = sq[j] * s, dy = sq[j + 1] * s;
         var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
-        var ux = run.flip[k] ? dy : -dy, uy = run.flip[k] ? dx : -dx;
+        var ux = run.flip[q] ? dy : -dy, uy = run.flip[q] ? dx : -dx;
 
-        if (kind === 3){
-          if (X < 0 || X > w || Y < 0 || Y > h) { continue; }
-          d.push("M" + f(X - half) + " " + f(Y - half) + "h" + f(2 * half) + "v" + f(2 * half) + "h" + f(-2 * half) + "z");
+        if (shape.dot){
+          var DX = X + shape.full.x[0] * dx + shape.full.y[0] * ux;
+          var DY = Y - shape.full.x[0] * dy + shape.full.y[0] * uy;
+          if (DX < 0 || DX > w || DY < 0 || DY > h) { continue; }
+          d.push("M" + f(DX - half) + " " + f(DY - half) + "h" + f(2 * half) + "v" + f(2 * half) + "h" + f(-2 * half) + "z");
           continue;
         }
         var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
         var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
         if (cx + r < 0 || cx - r > w || cy + r < 0 || cy - r > h) { continue; }
 
-        var path = "M" + f(X) + " " + f(Y) + "l" + f(dx) + " " + f(-dy);
-        if (kind === 0){
-          path += "l" + f(ux) + " " + f(uy) + "l" + f(-dx) + " " + f(dy) + "z";
-        } else if (kind === 2){
-          path += "l" + f(TRIANGLE_HEIGHT * ux - dx * 0.5) + " " + f(TRIANGLE_HEIGHT * uy + dy * 0.5) + "z";
+        var outline = r < DETAIL ? shape.coarse : shape.full, n = outline.x.length;
+        var back = fill && run.flip[q] === 1;
+        var path = [];
+        for (var m = 0; m < n; m++){
+          var k = back ? n - 1 - m : m;
+          path.push(f(X + outline.x[k] * dx + outline.y[k] * ux) + " " +
+                    f(Y - outline.x[k] * dy + outline.y[k] * uy));
         }
-        d.push(path);
+        d.push("M" + path.join("L") + (shape.closed ? "z" : ""));
       }
       if (d.length){
-        out.push("<path " + (kind === 3 ? "fill" : "stroke") + '="' + run.colour + '" d="' + d.join("") + '"/>');
+        out.push("<path " + (fill ? "fill" : "stroke") + '="' + run.colour + '" d="' + d.join("") + '"/>');
       }
     }
     out.push("</g>", "</svg>");
@@ -844,3 +958,4 @@ var fullColorHex = function(r, g, b){
 
 // Start with the first scheme (the page replaces it with the one chosen).
 setColours(PALETTES[0].stops[0], PALETTES[0].stops[1], PALETTES[0].stops[2], PALETTES[0].paper);
+similar.set_shape(SHAPE_LIBRARY.square.points, true);

@@ -257,6 +257,42 @@ button:active {
   display: none;
 }
 
+/* ---- Custom shape editor ---- */
+
+#shape_editor {
+  display: flex;
+  margin: 8px 0 2px;
+}
+
+#shape_editor[hidden] {
+  display: none;
+}
+
+#shape_pad {
+  flex: none;
+  width: 140px;
+  height: 140px;
+  margin-right: 10px;
+  background: #fbf9f3;
+  border: 1px solid #5c584d;
+  cursor: crosshair;
+}
+
+.pad_tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.pad_tools button {
+  margin-top: 5px;
+  font-size: 13px;
+}
+
+.pad_tools .hint {
+  margin-top: 6px;
+}
+
 /* ---- Colours ---- */
 
 table.colours {
