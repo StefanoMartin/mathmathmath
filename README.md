@@ -45,6 +45,39 @@ Favourites and colour choices are kept in the browser, separately for each
 copy of the page: the ones saved in the local copy do not appear online.
 Use *Save to file* and *Load from file* to move favourites.
 
+## Tests
+
+The app needs nothing installed; the tests need [Node.js](https://nodejs.org) 22
+(21 or newer).
+
+**Unit tests** – the fractal engine and the logic (links, favourites, colours,
+shapes, the extra detail when zooming in). No dependencies, under a second:
+
+```
+npm test
+```
+
+**Browser tests** – the page itself, on a desktop window and on an emulated
+phone: undo, links, favourites, dragging the frames, pinching, export, and so on.
+They use [Playwright](https://playwright.dev); the first time, install it and its
+browser:
+
+```
+npm install
+npx playwright install chromium
+npm run test:browser
+```
+
+`npm run test:all` runs both.
+
+| Folder | What is tested |
+|---|---|
+| `tests/unit/engine.test.js` | Counting and building copies, mirroring, the zoom detail checked against a full calculation, zoom and pan, finding the frames, bounds |
+| `tests/unit/shapes-colours.test.js` | Shapes stay in the square, simplified outlines, colour blending, dark paper |
+| `tests/unit/state.test.js` | Links read back the same, bad links are refused, favourites are cleaned, presets are valid, the zoom readout |
+| `tests/e2e/app.spec.js` | The page on a desktop: everything a person does with it |
+| `tests/e2e/phone.spec.js` | The page on a phone: layout, pinch, two-finger move, dragging with a finger |
+
 ## Files
 
 | File | What it does |
