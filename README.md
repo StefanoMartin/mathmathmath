@@ -52,7 +52,17 @@ Use *Save to file* and *Load from file* to move favourites.
 | `index.html` | The page: control panel and figure |
 | `css/style.css` | The look of the page |
 | `javascript/fractal.js` | The fractal engine: generations, zoom detail, drawing, SVG export, colours |
-| `javascript/main.js` | The controls: transforms, presets, favourites, links, dragging and zooming |
+| `javascript/basics.js` | The presets, limits and small helpers used by the other files |
+| `javascript/transforms.js` | The transform boxes in the panel and the Random button |
+| `javascript/shapes.js` | The Shape list and the pad for drawing a custom shape |
+| `javascript/colours.js` | Colour schemes, custom colours and line width |
+| `javascript/state.js` | The figure as a link, and undo/redo through the browser history |
+| `javascript/favourites.js` | Favourites (in the browser and as a file) and the Presets list |
+| `javascript/drawing.js` | Drawing the figure from the panel, and the lighter drawing while dragging |
+| `javascript/export.js` | Saving the view as PNG or SVG |
+| `javascript/events.js` | What the panel's buttons, fields and keys do |
+| `javascript/gestures.js` | Mouse and touch on the figure: zoom, pan, pinch, dragging the frames |
+| `javascript/main.js` | Starts the page (loaded last) |
 
 ## How it works
 
