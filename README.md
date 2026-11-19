@@ -18,18 +18,21 @@ give the Pythagoras tree; three on a triangle give the Sierpinski triangle.
   dot to turn and resize it). Hovering a frame highlights its box in the panel,
   and the other way round. Press **H** to hide the frames.
 - **Repeat** – choose how many generations are calculated.
-- **Zoom** – scroll on the figure to zoom in or out and drag to move around.
+- **Zoom** – scroll on the figure (or press **+** and **−**, or pinch on a
+  phone) to zoom in or out, and drag to move around.
   Zooming in calculates finer generations for the part in view, so the detail
-  keeps going (up to ×1,000,000).
+  keeps going (up to ×10¹², a million million).
 - **Display** – show only the last generation, fill closed shapes, colour each
   generation, pick a colour scheme or your own colours, and set the line
   thickness.
 - **Presets** – Pythagoras tree, Lévy C curve, dragon curve, Koch curve,
   Sierpinski triangle and arrowhead, Vicsek cross, a tree of hearts and more.
-- **Favourites** – save the figures you like, find them again in the Presets
-  list, and move them between browsers with *Save to file* / *Load from file*.
+- **Favourites** – save the figures you like (with their colours), find them
+  again in the Presets list, and move them between browsers with *Save to file* / *Load from file*.
+- **Undo** – every change can be undone and redone with the ↶ ↷ buttons on
+  the figure, **Ctrl+Z** / **Ctrl+Y**, or the browser's Back and Forward.
 - **Share** – the address in the browser always describes the figure on
-  screen, so copying the link shares it.
+  screen, colours included, so copying the link shares it.
 - **Export** – save the current view as a PNG picture or an SVG drawing.
 
 ## Running it locally

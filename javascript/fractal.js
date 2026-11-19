@@ -5,7 +5,10 @@ var MAX_SQUARES = 400000;
 // one path per copy pays too much per call.
 var STROKE_CHUNK = 32;
 // Largest zoom, relative to "fit the whole drawing in the window".
-var MAX_ZOOM = 1000000;
+// Numbers in JavaScript keep about 16 significant digits; past about x10^14
+// neighbouring pixels can no longer be told apart and the drawing breaks up.
+// x10^12 leaves a safe margin.
+var MAX_ZOOM = 1e12;
 // Smallest zoom: 5% of "fit the whole drawing in the window".
 var MIN_ZOOM = 0.05;
 // Most extra copies calculated for a zoomed-in view.

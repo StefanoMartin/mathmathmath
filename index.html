@@ -54,6 +54,20 @@
       </fieldset>
 
       <fieldset>
+        <legend>Transforms</legend>
+        <p class="preset">
+          <select id="preset" title="Replace the transforms with a classic figure or a favourite">
+            <option value="">Presets&hellip;</option>
+          </select><button type="button" id="deleteFavourite" title="Delete this favourite" hidden>Delete</button>
+        </p>
+        <div class="boxes"></div>
+        <p class="buttons">
+          <button type="button" id="addButton">Add transform</button>
+          <button type="button" id="randomButton">Random</button>
+        </p>
+      </fieldset>
+
+      <fieldset>
         <legend>Display</legend>
         <label><input type="checkbox" id="only_last"> Last generation only</label><br>
         <label><input type="checkbox" id="colored" checked> Colour by generation</label><br>
@@ -92,25 +106,11 @@
           <button type="button" id="zoomFit" title="Show the whole figure">Fit</button>
         </p>
         <p class="hint">
-          <span class="for_mouse">Scroll on the figure to zoom, drag to move; Fit shows the whole figure again.</span>
+          <span class="for_mouse">Scroll on the figure (or press + and &minus;) to zoom, drag to move; Fit shows the whole figure again.</span>
           <span class="for_touch">Pinch the figure to zoom, drag with two fingers to move; Fit shows the whole figure again.</span>
           Zooming in adds finer generations for the part in view.
           Drag a green square to move its transform; drag its dot to turn
           and resize it.
-        </p>
-      </fieldset>
-
-      <fieldset>
-        <legend>Transforms</legend>
-        <p class="preset">
-          <select id="preset" title="Replace the transforms with a classic figure or a favourite">
-            <option value="">Presets&hellip;</option>
-          </select><button type="button" id="deleteFavourite" title="Delete this favourite" hidden>Delete</button>
-        </p>
-        <div class="boxes"></div>
-        <p class="buttons">
-          <button type="button" id="addButton">Add transform</button>
-          <button type="button" id="randomButton">Random</button>
         </p>
       </fieldset>
 
@@ -139,6 +139,8 @@
       <canvas id="similar_canvas"></canvas>
       <div id="point_count"></div>
       <div class="figure_tools">
+        <button type="button" id="undoButton" class="figure_button" title="Undo (Ctrl+Z, or the browser's Back)" disabled>&#8630;</button>
+        <button type="button" id="redoButton" class="figure_button" title="Redo (Ctrl+Y, or the browser's Forward)" disabled>&#8631;</button>
         <button type="button" id="figureFit" class="figure_button" title="Show the whole figure">Fit</button>
         <button type="button" id="toggleHandles" class="figure_button"
           title="Show or hide the frames of the transforms (key H)">Hide transforms</button>

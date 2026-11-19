@@ -406,6 +406,17 @@ table.colours {
   display: none;
 }
 
+.figure_button:disabled {
+  color: #b3ad9e;
+  cursor: default;
+}
+
+#undoButton, #redoButton {
+  min-width: 30px;
+  font-size: 15px;
+  line-height: 1;
+}
+
 .figure_button {
   padding: 1px 8px;
   font-size: 13px;

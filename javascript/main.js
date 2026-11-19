@@ -187,9 +187,22 @@ var canvasSize = function(){
   };
 };
 
+// 250%, then ×120 or ×45,000, then ×1.5·10⁹ once the number would be too long.
+var formatZoom = function(z){
+  if (z < 10) { return Math.round(z * 100) + "%"; }
+  if (z < 1e6) { return "×" + formatCount(Math.round(z)); }
+  var exponent = Math.floor(Math.log10(z) + 1e-9);
+  var mantissa = z / Math.pow(10, exponent);
+  if (mantissa >= 9.95) { mantissa = 1; exponent++; }
+  var digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+  var power = String(exponent).split("").map(function(d){ return digits[d]; }).join("");
+  var m = mantissa.toFixed(1).replace(/\.0$/, "");
+  return "×" + (m === "1" ? "" : m + "·") + "10" + power;
+};
+
 var updateZoom = function(){
   var z = similar.zoom_level();
-  byId("zoom_level").textContent = z < 10 ? Math.round(z * 100) + "%" : "×" + formatCount(Math.round(z));
+  byId("zoom_level").textContent = formatZoom(z);
   byId("similar_canvas").classList.toggle("zoomed", !similar.view.fit);
 };
 
@@ -210,12 +223,14 @@ var readState = function(){
     shape: validShape(byId("shape").value),
     custom: validShape(byId("shape").value) === "custom" ? validCustom(custom_shape) : undefined,
     filled: byId("filled").checked,
+    colours: readColourState(),
     transforms: readTransforms()
   };
 };
 
-// Replace the transforms (and, when given, the other settings) and show the whole figure.
-var applyState = function(state){
+// Replace the transforms (and, when given, the other settings). The whole figure
+// is shown again, unless keep_view is set (undo and redo keep the zoom).
+var applyState = function(state, keep_view){
   document.querySelector(".boxes").innerHTML = "";
   state.transforms.forEach(function(t){ appendBox(t); });
   setPair(byId("repetition").closest(".row"), state.repeat);
@@ -227,14 +242,18 @@ var applyState = function(state){
     byId("pad_closed").checked = custom_shape.closed;
   }
   if (state.filled !== undefined) { byId("filled").checked = state.filled; }
-  similar.reset_view();
+  if (state.colours)              { applyColourState(state.colours); }
+  if (!keep_view) { similar.reset_view(); }
 };
 
 // r = repeat, l = last generation only, c = colour, s = shape (when not a square),
 // p = points of a custom shape (x,y;x,y...), k = 0 for an open custom shape,
-// f = 1 for filled shapes, t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
+// f = 1 for filled shapes, cs = colour scheme (its number, or "custom" with
+// cc = first,middle,last,paper colours), lw = line width,
+// t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
 var encodeState = function(state){
   var custom = state.shape === "custom" && state.custom ? state.custom : null;
+  var colours = state.colours;
   return "r=" + state.repeat +
     "&l=" + (state.last ? 1 : 0) +
     "&c=" + (state.colour ? 1 : 0) +
@@ -242,6 +261,9 @@ var encodeState = function(state){
     (custom ? "&p=" + custom.points.map(function(p){ return p.join(","); }).join(";") : "") +
     (custom && !custom.closed ? "&k=0" : "") +
     (state.filled ? "&f=1" : "") +
+    (colours ? "&cs=" + colours.palette +
+      (colours.palette === "custom" ? "&cc=" + colours.colours.map(function(c){ return c.replace("#", ""); }).join(",") : "") +
+      "&lw=" + colours.lines : "") +
     "&t=" + state.transforms.map(function(t){ return compactTransform(t).join(","); }).join(";");
 };
 
@@ -251,6 +273,7 @@ var decodeState = function(hash){
 
   var state = { repeat: 7, last: false, colour: false, shape: "square", filled: false, transforms: [] };
   var custom = { points: [], closed: true };
+  var scheme = null, scheme_colours = null, lines = null;
   var has_transforms = false;
   text.split("&").forEach(function(part){
     var i = part.indexOf("=");
@@ -271,6 +294,12 @@ var decodeState = function(hash){
       custom.closed = value !== "0";
     } else if (key === "f"){
       state.filled = value === "1";
+    } else if (key === "cs"){
+      scheme = value;
+    } else if (key === "cc"){
+      scheme_colours = value.split(",").map(function(c){ return "#" + c; });
+    } else if (key === "lw"){
+      lines = value;
     } else if (key === "t"){
       has_transforms = true;
       value.split(";").forEach(function(item){
@@ -282,31 +311,96 @@ var decodeState = function(hash){
   if (!has_transforms) { return null; }
   state.transforms = state.transforms.slice(0, MAX_TRANSFORMS);
   if (state.shape === "custom") { state.custom = validCustom(custom); }
+  // Links made before colours were shared have none: the viewer's own colours stay.
+  if (scheme !== null){
+    state.colours = validColourState({ palette: scheme, colours: scheme_colours, lines: lines });
+  }
   return state;
 };
 
-// Keep the address in step with the figure, so it can be bookmarked or shared.
+// ---- The address and the history: sharing, undo and redo ----
+//
+// The address always describes the figure on screen, so it can be bookmarked
+// or shared. Each change also becomes a step in the browser's history, so the
+// browser's Back and Forward (and the undo and redo buttons) step through the
+// changes. A change is recorded once things have been still for a moment, so
+// dragging a slider makes one step, not hundreds.
+
+var HISTORY_DELAY = 400;    // ms of calm before a change is recorded
+var history_index = 0;      // this page's position in its own steps
+var history_max = 0;        // the last step that can be redone
+var history_ready = false;  // the first figure has been written into the address
+var restoring = false;      // the figure on screen comes from a step (undo/redo)
 var save_timer = null;
+
+var currentStep = function(){
+  return history.state && typeof history.state.sf === "number" ? history.state.sf : null;
+};
+
+var updateUndoButtons = function(){
+  byId("undoButton").disabled = history_index <= 0;
+  byId("redoButton").disabled = history_index >= history_max;
+};
+
+var writeAddress = function(hash, push){
+  try {
+    if (push){
+      history.pushState({ sf: history_index }, "", hash);
+    } else {
+      history.replaceState({ sf: history_index }, "", hash);
+    }
+  } catch (e) {
+    location.hash = hash;
+  }
+};
+
 var scheduleSaveHash = function(){
   clearTimeout(save_timer);
   save_timer = setTimeout(function(){
     var hash = "#" + encodeState(readState());
-    if (location.hash === hash) { return; }
-    try {
-      history.replaceState(null, "", hash);
-    } catch (e) {
-      location.hash = hash;
+    if (!history_ready || restoring){
+      // The first figure, or one restored by undo/redo: describe it, add no step.
+      history_ready = true;
+      restoring = false;
+      writeAddress(hash, false);
+    } else if (location.hash !== hash){
+      history_index++;
+      history_max = history_index;
+      writeAddress(hash, true);
     }
-  }, 250);
+    updateUndoButtons();
+  }, history_ready && !restoring ? HISTORY_DELAY : 0);
 };
 
-// The address was edited by hand, or the browser went back or forward.
-var onHashChange = function(){
+// Back, Forward, undo or redo; or the address was edited by hand.
+var onHistory = function(){
+  var step = currentStep();
+  if (step === null){
+    // Edited by hand: a new step after the current one.
+    history_index++;
+    history_max = history_index;
+  } else {
+    history_index = step;
+    if (history_index > history_max) { history_max = history_index; }
+  }
   var state = decodeState(location.hash);
   if (state && encodeState(state) !== encodeState(readState())){
-    applyState(state);
+    clearTimeout(save_timer);
+    restoring = true;
+    applyState(state, true);
     scheduleBuild();
+  } else if (step === null){
+    writeAddress(location.hash, false);
   }
+  updateUndoButtons();
+};
+
+var undo = function(){
+  if (history_index > 0) { history.back(); }
+};
+
+var redo = function(){
+  if (history_index < history_max) { history.forward(); }
 };
 
 // ---- Favourites: figures kept in this browser ----
@@ -315,9 +409,9 @@ var FAVOURITES_KEY = "similar-fractal.favourites";
 
 // Keep only the well-formed entries of a list of favourites: it may come from
 // a file, or from a store that was edited by hand.
-// An entry is {name, repeat, shape, custom, last, filled, t: [[x, y, rotation, scale(, 1)], ...]};
-// "custom" is only there for a custom shape; "last" and "filled" are missing from
-// favourites saved before they existed.
+// An entry is {name, repeat, shape, custom, last, filled, colours, t: [[x, y, rotation, scale(, 1)], ...]};
+// "custom" is only there for a custom shape; "last", "filled" and "colours" are
+// missing from favourites saved before they existed.
 var cleanFavourites = function(list){
   if (!Array.isArray(list)) { return []; }
   var good = [];
@@ -331,6 +425,7 @@ var cleanFavourites = function(list){
       custom: item.shape === "custom" ? validCustom(item.custom) || { points: [], closed: true } : undefined,
       last: typeof item.last === "boolean" ? item.last : undefined,
       filled: typeof item.filled === "boolean" ? item.filled : undefined,
+      colours: item.colours ? validColourState(item.colours) || undefined : undefined,
       t: item.t.filter(validTransform).slice(0, MAX_TRANSFORMS).map(compactTransform)
     });
   });
@@ -365,9 +460,11 @@ var storeFavourites = function(list){
 var current_pick = null;
 
 // What makes a figure, for comparing with the picked entry.
-var figureKey = function(){
+// With with_colours (for a favourite, which keeps its colours) the colours count too.
+var figureKey = function(with_colours){
   var state = readState();
   return JSON.stringify([state.repeat, state.shape, state.custom || null, state.last, state.filled,
+                         with_colours ? state.colours : null,
                          state.transforms.map(compactTransform)]);
 };
 
@@ -388,8 +485,9 @@ var updatePresetList = function(){
     del.hidden = true;
     return;
   }
-  if (current_pick.key === null) { current_pick.key = figureKey(); }
-  if (figureKey() === current_pick.key){
+  var with_colours = current_pick.kind === "f";
+  if (current_pick.key === null) { current_pick.key = figureKey(with_colours); }
+  if (figureKey(with_colours) === current_pick.key){
     title.textContent = "Presets\u2026";
     select.value = current_pick.kind + ":" + current_pick.index;
   } else {
@@ -465,14 +563,14 @@ var saveFavourite = function(){
   var state = readState();
   putFavourite(list, {
     name: name, repeat: state.repeat, shape: state.shape, custom: state.custom,
-    last: state.last, filled: state.filled,
+    last: state.last, filled: state.filled, colours: state.colours,
     t: state.transforms.map(compactTransform)
   });
 
   if (storeFavourites(list)){
     field.value = "";
     // The figure on screen is now this favourite.
-    current_pick = { kind: "f", index: 0, name: name, key: figureKey() };
+    current_pick = { kind: "f", index: 0, name: name, key: figureKey(true) };
     renderFavourites("Saved as \u201c" + name + "\u201d.");
   } else {
     renderFavourites("This browser did not allow the figure to be saved.");
@@ -483,7 +581,7 @@ var showFavourite = function(index){
   var item = loadFavourites()[index];
   if (!item) { return; }
   applyState({ repeat: item.repeat, shape: item.shape, custom: item.custom,
-                last: item.last, filled: item.filled, transforms: item.t });
+                last: item.last, filled: item.filled, colours: item.colours, transforms: item.t });
   pickEntry("f", index, item.name);
   scheduleBuild();
 };
@@ -575,6 +673,42 @@ var applyColours = function(){
 
 var paletteValues = function(p){
   return [p.stops[0], p.stops[1], p.stops[2], p.paper];
+};
+
+var LINE_WIDTHS = ["1", "1.5", "2.5"];
+
+// The colours as they are shared and saved: {palette, colours, lines}.
+var readColourState = function(){
+  return {
+    palette: byId("palette").value,
+    colours: readColourFields().map(function(c){ return c.toLowerCase(); }),
+    lines: byId("line_width").value
+  };
+};
+
+// A well-formed colour state, or null. A scheme by number brings its own colours.
+var validColourState = function(c){
+  if (!c) { return null; }
+  var lines = LINE_WIDTHS.indexOf(String(c.lines)) >= 0 ? String(c.lines) : "1.5";
+  if (c.palette === "custom"){
+    var ok = Array.isArray(c.colours) && c.colours.length === 4 &&
+      c.colours.every(function(x){ return hexToRgb(x) !== null; });
+    if (!ok) { return null; }
+    return { palette: "custom", colours: c.colours.map(function(x){ return x.toLowerCase(); }), lines: lines };
+  }
+  var p = PALETTES[c.palette];
+  if (!p) { return null; }
+  return { palette: String(c.palette), colours: paletteValues(p).map(function(x){ return x.toLowerCase(); }), lines: lines };
+};
+
+// Show the given colours in the panel and draw with them.
+var applyColourState = function(c){
+  c = validColourState(c);
+  if (!c) { return; }
+  byId("palette").value = c.palette;
+  setColourFields(c.colours);
+  byId("line_width").value = c.lines;
+  applyColours();
 };
 
 var colourEvents = function(){
@@ -868,11 +1002,28 @@ var panelEvents = function(){
   byId("toggleHandles").addEventListener("click", toggleHandles);
   byId("figureFit").addEventListener("click", function(){ similar.reset_view(); scheduleBuild(); });
   document.addEventListener("keydown", function(e){
-    // H hides or shows the frames, unless a text or number field is being typed in.
+    // Keys work everywhere except while a field is being typed in.
     var tag = e.target.tagName;
-    if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey && !e.altKey &&
-        tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT"){
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") { return; }
+    var command = e.ctrlKey || e.metaKey;
+    var key = e.key;
+
+    if (command && !e.altKey && (key === "z" || key === "Z")){
+      if (e.shiftKey) { redo(); } else { undo(); }
+      e.preventDefault();
+    } else if (command && !e.altKey && (key === "y" || key === "Y")){
+      redo();
+      e.preventDefault();
+    } else if (command || e.altKey){
+      return;   // leave the browser's own shortcuts (Ctrl and + zooms the page) alone
+    } else if (key === "h" || key === "H"){
       toggleHandles();
+    } else if (key === "+" || key === "="){
+      zoomCentre(1.5);
+      e.preventDefault();
+    } else if (key === "-" || key === "_"){
+      zoomCentre(1 / 1.5);
+      e.preventDefault();
     }
   });
 
@@ -922,7 +1073,9 @@ var panelEvents = function(){
 
   window.addEventListener("resize", scheduleBuild);
   window.addEventListener("load", scheduleBuild);
-  window.addEventListener("hashchange", onHashChange);
+  window.addEventListener("popstate", onHistory);
+  byId("undoButton").addEventListener("click", undo);
+  byId("redoButton").addEventListener("click", redo);
 };
 
 var toggleHandles = function(){
@@ -1107,8 +1260,14 @@ document.addEventListener("DOMContentLoaded", function(){
   shapeEvents();
   renderFavourites();
 
-  // Start from the link if it describes a figure, otherwise from the Pythagoras tree.
+  // Start from the link if it describes a figure, otherwise from the Pythagoras tree preset.
+  history_index = currentStep() || 0;
+  history_max = history_index;
   var state = decodeState(location.hash);
-  applyState(state || { repeat: 7, shape: "square", transforms: PRESETS[0].t });
+  if (state){
+    applyState(state);
+  } else {
+    showPreset(0);
+  }
   build();
 });
