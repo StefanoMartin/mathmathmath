@@ -77,6 +77,16 @@ var previewRepetition = function(repetition){
 
 var build = function(){
   var started = performance.now();
+  var dots = byId("draw_mode").value === "dots";
+  similar.draw_mode    = dots ? "dots" : "copies";
+  // Shape, Repeat and the line settings do nothing for random dots: shown pale
+  // and left alone, so they are as they were when switching back.
+  Array.prototype.forEach.call(document.querySelectorAll(".copies_only"), function(el){
+    el.classList.toggle("unused", dots);
+    Array.prototype.forEach.call(el.querySelectorAll("input, select, button"), function(c){ c.disabled = dots; });
+  });
+  byId("saveSvg").disabled = dots;
+  byId("saveSvg").title = dots ? "Random dots are saved as a picture (PNG) only" : "Save the current view as a vector drawing";
   similar.only_last    = byId("only_last").checked;
   similar.colour_mode  = colourMode(byId("colour_mode").value);
   similar.opacity      = readOpacity();
@@ -92,8 +102,8 @@ var build = function(){
     similar.set_shape(SHAPE_LIBRARY[shape].points, SHAPE_LIBRARY[shape].closed);
     last_library_shape = shape;
   }
-  byId("shape_editor").hidden = shape !== "custom";
-  if (shape === "custom") { paintPad(); }
+  byId("shape_editor").hidden = shape !== "custom" || dots;
+  if (shape === "custom" && !dots) { paintPad(); }
 
   similar.iteration = [];
   readTransforms().forEach(function(t){
@@ -105,7 +115,7 @@ var build = function(){
   var row = field.closest(".row");
   var repetition = Math.max(0, Math.floor(readNumber(field, 0)));
   var max_rep = similar.max_repetition();
-  if (repetition > max_rep){
+  if (repetition > max_rep && !dots){
     repetition = max_rep;
     byId("limit_warning").textContent = "Repeat limited to " + max_rep + " with " +
       similar.iteration.length + " transforms, to stay under " +
@@ -113,21 +123,30 @@ var build = function(){
   } else {
     byId("limit_warning").textContent = "";
   }
-  setPair(row, repetition);
-  similar.repetition = previewRepetition(repetition);
-  previewing = similar.repetition < repetition;
+  if (!dots) { setPair(row, repetition); }
 
-  // Recompute the geometry only if something that affects it changed;
-  // toggling a display option, zooming or panning just repaints.
-  var key = JSON.stringify([similar.repetition, similar.iteration]);
-  last_rebuilt = key !== last_geometry_key;
-  if (last_rebuilt){
-    similar.build();
-    last_geometry_key = key;
+  if (dots){
+    // No copies to calculate: the dots are placed while drawing (see dots.js).
+    previewing = false;
+    last_rebuilt = false;
+    similar.compute_dot_bounds();
+  } else {
+    similar.repetition = previewRepetition(repetition);
+    previewing = similar.repetition < repetition;
+
+    // Recompute the geometry only if something that affects it changed;
+    // toggling a display option, zooming or panning just repaints.
+    var key = JSON.stringify([similar.repetition, similar.iteration]);
+    last_rebuilt = key !== last_geometry_key;
+    if (last_rebuilt){
+      similar.build();
+      last_geometry_key = key;
+    }
+    similar.compute_bounds();
   }
-  similar.compute_bounds();
   var size = canvasSize();
   similar.paint(size.w, size.h);
+  if (dots) { moreDots(); }
   // Measured on every drawing: large copies cost more than small ones, so the
   // lighter version corrects its own estimate from one frame to the next.
   last_ms = performance.now() - started;
@@ -138,6 +157,28 @@ var build = function(){
   updateZoom();
   updatePresetList();
   scheduleSaveHash();
+};
+
+// Random dots: keep adding dots, a batch per frame, until there are enough.
+// The picture is redrawn every few batches (and at the end), as that costs
+// more than placing the dots.
+var dots_frame = null;
+var dots_painted = 0;
+var moreDots = function(){
+  if (dots_frame !== null) { return; }
+  dots_painted = performance.now();
+  dots_frame = requestAnimationFrame(function step(){
+    dots_frame = null;
+    if (similar.draw_mode !== "dots" || chaos.done()) { return; }
+    chaos.run(DOTS_STEP_MS);
+    if (chaos.done() || performance.now() - dots_painted > 150){
+      var size = canvasSize();
+      similar.paint(size.w, size.h);
+      updatePointCount();
+      dots_painted = performance.now();
+    }
+    if (!chaos.done()) { dots_frame = requestAnimationFrame(step); }
+  });
 };
 
 // Coalesce bursts of input events (e.g. dragging a slider) into one redraw per frame.
@@ -183,9 +224,16 @@ var updateZoom = function(){
 
 // Count the points of every copy in all generations calculated,
 // including the extra ones added for a zoomed-in view.
+// With random dots: how many have landed in the window so far.
 var updatePointCount = function(){
-  var points = (similar.total + similar.extra_count) * similar.shape_points();
-  byId("point_count").textContent = formatCount(points) + " points calculated";
+  if (similar.draw_mode === "dots"){
+    byId("point_count").textContent = chaos.failed ?
+      "No dots: the point flies off (a transform does not shrink enough)" :
+      formatCount(chaos.in_view) + " dots" + (chaos.done() ? "" : "…");
+  } else {
+    var points = (similar.total + similar.extra_count) * similar.shape_points();
+    byId("point_count").textContent = formatCount(points) + " points calculated";
+  }
   updateDimension();
 };
 

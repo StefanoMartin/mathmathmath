@@ -122,6 +122,11 @@ button.step + button.step {
   margin-left: 2px;
 }
 
+/* Settings that only matter for copies of the shape, while drawing random dots. */
+.unused {
+  opacity: 0.45;
+}
+
 .limit_warning {
   margin: 4px 0 0;
   font-size: 12px;

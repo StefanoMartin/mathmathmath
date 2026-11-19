@@ -20,6 +20,13 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
   square dot to stretch and slant it. Hovering a frame highlights its box in the panel,
   and the other way round. Press **H** to hide the frames.
 - **Repeat** – choose how many generations are calculated.
+- **Random dots** – instead of copying the shape, draw the figure the classic
+  way (the "chaos game"): one point jumps about, moved each time by a transform
+  picked at random, and leaves a dot wherever it lands. Millions of dots take a
+  fraction of a second, and the colour deepens where they pile up. Zooming
+  in keeps the dots as fine as in the whole figure. It draws
+  the fractal itself (the limit of the generations), so a Pythagoras tree
+  shows its leafy edge without the trunk.
 - **Zoom** – scroll on the figure (or press **+** and **−**, or pinch on a
   phone) to zoom in or out, and drag to move around.
   Zooming in calculates finer generations for the part in view, so the detail
@@ -81,6 +88,7 @@ npm run test:browser
 |---|---|
 | `tests/unit/engine.test.js` | Counting and building copies, mirroring, stretch and slant, the zoom detail checked against a full calculation, zoom and pan, finding the frames, bounds, the dimension |
 | `tests/unit/shapes-colours.test.js` | Shapes stay in the square, simplified outlines, colour blending, dark paper |
+| `tests/unit/dots.test.js` | Random dots: they lie on the figure, the chances of each transform, stopping, colouring, bounds |
 | `tests/unit/state.test.js` | Links read back the same, bad links are refused, favourites are cleaned, presets are valid, the zoom readout |
 | `tests/e2e/app.spec.js` | The page on a desktop: everything a person does with it |
 | `tests/e2e/phone.spec.js` | The page on a phone: layout, pinch, two-finger move, dragging with a finger |
@@ -92,6 +100,7 @@ npm run test:browser
 | `index.html` | The page: control panel and figure |
 | `css/style.css` | The look of the page |
 | `javascript/fractal.js` | The fractal engine: generations, zoom detail, drawing, SVG export, colours |
+| `javascript/dots.js` | Drawing the figure as random dots (the chaos game) |
 | `javascript/basics.js` | The presets, limits and small helpers used by the other files |
 | `javascript/transforms.js` | The transform boxes in the panel and the Random button |
 | `javascript/shapes.js` | The Shape list and the pad for drawing a custom shape |
@@ -113,6 +122,17 @@ turn × mirror × slant × (width, height), so with stretch 1 and slant 0 it is
 an ordinary turn-and-scale. Applying a transform to a copy is a dozen
 multiplications, so a few hundred thousand copies are calculated in
 milliseconds.
+
+With random dots, a point is moved over and over by a transform picked at
+random, each with a chance in proportion to its area (so that the figure is
+evenly covered), and every place it lands is counted in a pixel. The shade of
+each pixel goes from the sparsest to the most crowded pixels on screen.
+Zoomed in, the figure is first cut into the pieces (copies of the whole
+figure) that reach the window, each with its share of the dots; every dot is
+then the point's image in a piece picked by share. That is the same picture
+as the plain chaos game, but nearly every dot lands in view. When the copies
+overlap heavily (the maple leaf), the pieces needed grow very fast, so very
+deep zooms there fill in more slowly.
 
 When you zoom in, only the copies that can still reach the window are
 expanded further, until they are as fine on screen as the smallest copies of

@@ -114,7 +114,7 @@ test("favourites keep the figure and its colours, and can be deleted", async ({ 
   await expect(page.locator("#colour_middle")).toHaveValue("#00aa55");
 
   await page.selectOption("#palette", { label: "Ocean" });
-  expect(await presetShown(page)).toBe("Green heart (edited)");
+  await expect.poll(() => presetShown(page)).toBe("Green heart (edited)");   // after the next redraw
 
   await page.selectOption("#preset", { label: "Green heart" });
   await page.click("#deleteFavourite");
@@ -361,5 +361,85 @@ test("opacity: the slider, the link and favourites", async ({ page }) => {
   await page.selectOption("#preset", { label: "Glass tree" });
   await expect(page.locator("#opacity_value")).toHaveText("40%");
   await expect(page.locator("#colour_mode")).toHaveValue("transform");
+  expect(errors).toEqual([]);
+});
+
+test("random dots: an option that keeps the copies' settings, travels with the link and undo", async ({ page }, info) => {
+  const errors = await open(page, PYTHAGORAS);
+  await page.selectOption("#draw_mode", "dots");
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ dots$/, { timeout: 15000 });
+  await expect(page).toHaveURL(/&d=1&/);
+  // The settings for copies are pale and cannot be changed, but keep their values.
+  for (const id of ["#shape", "#repetition", "#only_last", "#filled", "#line_width", "#saveSvg"]){
+    await expect(page.locator(id)).toBeDisabled();
+  }
+  await expect(page.locator("#repetition")).toHaveValue("10");
+  // Something is drawn: plenty of pixels differ from the paper.
+  const inked = await page.evaluate(() => {
+    const c = document.getElementById("similar_canvas");
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4){ if (d[i] < 240) { n++; } }
+    return n;
+  });
+  expect(inked).toBeGreaterThan(5000);
+  // Saved as a picture.
+  const download = page.waitForEvent("download");
+  await page.click("#savePng");
+  const file = info.outputPath("dots.png");
+  await (await download).saveAs(file);
+  expect(require("node:fs").readFileSync(file).subarray(0, 4).toString("latin1")).toBe("\u0089PNG");
+
+  // A new page from the link draws dots too.
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  await expect(other.locator("#draw_mode")).toHaveValue("dots");
+  await expect(other.locator("#point_count")).toHaveText(/dots/);
+
+  // Undo goes back to copies, exactly as they were.
+  await page.waitForTimeout(600);
+  await page.click("#undoButton");
+  await expect(page.locator("#draw_mode")).toHaveValue("copies");
+  await expect(page.locator("#point_count")).toHaveText("8,188 points calculated");
+  await expect(page.locator("#repetition")).toBeEnabled();
+  await expect(page.locator("#saveSvg")).toBeEnabled();
+  expect(errors).toEqual([]);
+});
+
+test("random dots: dragging a frame and zooming start the dots again", async ({ page }) => {
+  const errors = await open(page, PYTHAGORAS);
+  await page.selectOption("#draw_mode", "dots");
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ dots$/, { timeout: 15000 });
+  const start = await screenPoint(page, 1, 1.5);   // inside T2's frame
+  const scale = await page.evaluate(() => similar.screen_scale());
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 0.2 * scale, start.y, { steps: 5 });
+  await page.mouse.up();
+  expect((await transforms(page))[1][0]).toBeCloseTo(0.7, 2);
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ dots$/, { timeout: 15000 });
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.wheel(0, -600);
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ dots$/, { timeout: 15000 });
+  expect(await page.evaluate(() => similar.zoom_level())).toBeGreaterThan(1.5);
+  expect(errors).toEqual([]);
+});
+
+test("random dots: zoomed far in, the detail is as fine as in the whole figure", async ({ page }) => {
+  const errors = await open(page);
+  await page.selectOption("#preset", { label: "Sierpinski triangle" });
+  await page.selectOption("#draw_mode", "dots");
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ dots$/, { timeout: 15000 });
+  // Zoom 10,000 times into a corner of a small triangle.
+  await page.evaluate(() => {
+    const p = { x: 0.25 + 0.25 / 1024, y: 0.433 };
+    similar.view = { fit: false, held: false, s: similar.fit_scale() * 1e4, x: p.x, y: p.y };
+    scheduleBuild();
+  });
+  await expect(page.locator("#zoom_level")).toHaveText("×10,000");
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ dots$/, { timeout: 15000 });
+  const [in_view, placed] = await page.evaluate(() => [chaos.in_view, chaos.placed]);
+  expect(in_view).toBeGreaterThan(1000000);
+  expect(in_view / placed).toBeGreaterThan(0.3);
   expect(errors).toEqual([]);
 });

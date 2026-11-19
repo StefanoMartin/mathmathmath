@@ -23,6 +23,7 @@ var cleanFavourites = function(list){
       shape: validShape(item.shape),
       custom: item.shape === "custom" ? validCustom(item.custom) || { points: [], closed: true } : undefined,
       last: typeof item.last === "boolean" ? item.last : undefined,
+      dots: typeof item.dots === "boolean" ? item.dots : undefined,
       filled: typeof item.filled === "boolean" ? item.filled : undefined,
       colouring: item.colouring !== undefined ? colourMode(item.colouring) : undefined,
       opacity: item.opacity !== undefined ? validOpacity(item.opacity) || undefined : undefined,
@@ -65,7 +66,7 @@ var current_pick = null;
 var figureKey = function(with_colours){
   var state = readState();
   return JSON.stringify([state.repeat, state.shape, state.custom || null, state.last, state.filled,
-                         with_colours ? [state.colours, state.colour, state.opacity] : null,
+                         with_colours ? [state.colours, state.colour, state.opacity, state.dots] : null,
                          state.transforms.map(compactTransform)]);
 };
 
@@ -164,7 +165,7 @@ var saveFavourite = function(){
   var state = readState();
   putFavourite(list, {
     name: name, repeat: state.repeat, shape: state.shape, custom: state.custom,
-    last: state.last, filled: state.filled, colours: state.colours,
+    last: state.last, dots: state.dots, filled: state.filled, colours: state.colours,
     colouring: state.colour, opacity: state.opacity,
     t: state.transforms.map(compactTransform)
   });
@@ -183,7 +184,7 @@ var showFavourite = function(index){
   var item = loadFavourites()[index];
   if (!item) { return; }
   applyState({ repeat: item.repeat, shape: item.shape, custom: item.custom,
-                last: item.last, filled: item.filled, colours: item.colours,
+                last: item.last, dots: item.dots, filled: item.filled, colours: item.colours,
                 colour: item.colouring, opacity: item.opacity, transforms: item.t });
   pickEntry("f", index, item.name);
   scheduleBuild();

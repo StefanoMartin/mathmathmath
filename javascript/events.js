@@ -50,6 +50,7 @@ var panelEvents = function(){
   byId("addButton").addEventListener("click", function(){ appendBox(); scheduleBuild(); });
   byId("randomButton").addEventListener("click", randomBuild);
   byId("only_last").addEventListener("change", scheduleBuild);
+  byId("draw_mode").addEventListener("change", scheduleBuild);
   byId("colour_mode").addEventListener("change", scheduleBuild);
   byId("opacity").addEventListener("input", function(){
     markInteraction();

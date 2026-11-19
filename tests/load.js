@@ -9,7 +9,7 @@ const vm = require("node:vm");
 const ROOT = path.join(__dirname, "..");
 
 const FILES = [
-  "fractal.js", "basics.js", "transforms.js", "shapes.js", "colours.js",
+  "fractal.js", "dots.js", "basics.js", "transforms.js", "shapes.js", "colours.js",
   "state.js", "favourites.js", "drawing.js", "export.js", "events.js", "gestures.js"
 ];
 

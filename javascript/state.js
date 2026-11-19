@@ -7,6 +7,7 @@ var readState = function(){
   return {
     repeat: Math.max(0, Math.floor(readNumber(byId("repetition"), 0))),
     last: byId("only_last").checked,
+    dots: byId("draw_mode").value === "dots",
     colour: colourMode(byId("colour_mode").value),
     opacity: readOpacity(),
     shape: validShape(byId("shape").value),
@@ -24,6 +25,7 @@ var applyState = function(state, keep_view){
   state.transforms.forEach(function(t){ appendBox(t); });
   setPair(byId("repetition").closest(".row"), state.repeat);
   if (state.last !== undefined)   { byId("only_last").checked = state.last; }
+  if (state.dots !== undefined)   { byId("draw_mode").value = state.dots ? "dots" : "copies"; }
   if (state.colour !== undefined) { byId("colour_mode").value = colourMode(state.colour); }
   if (state.opacity !== undefined){
     byId("opacity").value = Math.round((validOpacity(state.opacity) || 1) * 100);
@@ -38,7 +40,7 @@ var applyState = function(state, keep_view){
   if (!keep_view) { similar.reset_view(); }
 };
 
-// r = repeat, l = last generation only, c = colouring, o = opacity in % (when below 100),
+// r = repeat, l = last generation only, d = 1 for random dots, c = colouring, o = opacity in % (when below 100),
 // s = shape (when not a square),
 // p = points of a custom shape (x,y;x,y...), k = 0 for an open custom shape,
 // f = 1 for filled shapes, cs = colour scheme (its number, or "custom" with
@@ -53,6 +55,7 @@ var encodeState = function(state){
   var colours = state.colours;
   return "r=" + state.repeat +
     "&l=" + (state.last ? 1 : 0) +
+    (state.dots ? "&d=1" : "") +
     "&c=" + COLOUR_CODES[colourMode(state.colour)] +
     (state.opacity !== undefined && state.opacity < 1 ? "&o=" + Math.round(state.opacity * 100) : "") +
     (state.shape && state.shape !== "square" ? "&s=" + state.shape : "") +
@@ -69,7 +72,8 @@ var decodeState = function(hash){
   var text = hash.replace(/^#/, "");
   try { text = decodeURIComponent(text); } catch (e) { return null; }
 
-  var state = { repeat: 7, last: false, colour: "ink", opacity: 1, shape: "square", filled: false, transforms: [] };
+  var state = { repeat: 7, last: false, dots: false, colour: "ink", opacity: 1, shape: "square", filled: false,
+                transforms: [] };
   var custom = { points: [], closed: true };
   var scheme = null, scheme_colours = null, lines = null;
   var has_transforms = false;
@@ -82,6 +86,8 @@ var decodeState = function(hash){
       if (isFinite(r) && r >= 0) { state.repeat = r; }
     } else if (key === "l"){
       state.last = value === "1";
+    } else if (key === "d"){
+      state.dots = value === "1";
     } else if (key === "c"){
       state.colour = value === "2" ? "transform" : (value === "1" ? "generation" : "ink");
     } else if (key === "o"){

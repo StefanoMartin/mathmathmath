@@ -51,6 +51,18 @@ test("stretch and slant are only written when used, and read back", () => {
   assert.equal(app.validTransform([0, 0, 0, 0.5, 0, 2, 0, 9]), false, "too many values");
 });
 
+test("random dots travel with links and favourites", () => {
+  const link = app.encodeState({ ...BASE, dots: true });
+  assert.match(link, /&d=1/);
+  assert.equal(app.decodeState("#" + link).dots, true);
+  assert.doesNotMatch(app.encodeState({ ...BASE, dots: false }), /&d=/);
+  assert.equal(app.decodeState("#t=0,0,0,0.5").dots, false, "a link without it draws copies");
+  const [kept] = app.cleanFavourites([{ name: "A", repeat: 3, dots: true, t: [[0, 0, 0, 0.5]] }]);
+  assert.equal(kept.dots, true);
+  const [old] = app.cleanFavourites([{ name: "B", repeat: 3, dots: "yes", t: [[0, 0, 0, 0.5]] }]);
+  assert.equal(old.dots, undefined, "older or odd favourites leave the choice alone");
+});
+
 test("old links without colours leave the viewer's colours alone", () => {
   const state = app.decodeState("#r=6&l=0&c=1&t=0,1,45,0.707;0.5,1.5,315,0.707");
   assert.equal(state.colours, undefined);

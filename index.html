@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="css/style.css">
 
     <script src="javascript/fractal.js"></script>
+    <script src="javascript/dots.js"></script>
     <script src="javascript/basics.js"></script>
     <script src="javascript/transforms.js"></script>
     <script src="javascript/shapes.js"></script>
@@ -36,12 +37,21 @@
           <!-- Same column widths as the transform boxes, although the first row spans two. -->
           <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
           <tr>
+            <th>Draw</th>
+            <td colspan="2" class="wide">
+              <select id="draw_mode" title="Copy the shape generation after generation, or let one point jump about at random and leave a dot wherever it lands (the chaos game)">
+                <option value="copies" selected>Copies of the shape</option>
+                <option value="dots">Random dots</option>
+              </select>
+            </td>
+          </tr>
+          <tr class="copies_only">
             <th>Shape</th>
             <td colspan="2" class="wide">
               <select id="shape" title="The shape that is copied"></select>
             </td>
           </tr>
-          <tr class="row">
+          <tr class="row copies_only">
             <th>Repeat</th>
             <td colspan="2" class="wide">
               <div class="repeat_box">
@@ -79,8 +89,8 @@
 
       <fieldset>
         <legend>Display</legend>
-        <label><input type="checkbox" id="only_last"> Last generation only</label><br>
-        <label><input type="checkbox" id="filled"> Filled shapes</label><br>
+        <label class="copies_only"><input type="checkbox" id="only_last"> Last generation only</label><br>
+        <label class="copies_only"><input type="checkbox" id="filled"> Filled shapes</label><br>
         <label><input type="checkbox" id="show_handles" checked> Show transforms on the figure</label>
         <table class="controls colours">
           <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
@@ -100,7 +110,7 @@
               <select id="palette" title="Inks and paper"></select>
             </td>
           </tr>
-          <tr>
+          <tr class="copies_only">
             <th>Lines</th>
             <td colspan="2" class="wide">
               <select id="line_width" title="Thickness of the lines">

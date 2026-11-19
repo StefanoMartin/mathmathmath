@@ -142,6 +142,7 @@ var similar = {
   repetition: 10,
   iteration: [],
   only_last: false,
+  draw_mode: "copies",     // "copies" of the shape, or random "dots" (see dots.js)
   colour_mode: "generation",   // colour by "generation", by "transform", or one "ink"
   opacity: 1,              // 0.1 .. 1; below 1 overlapping copies show deeper
   show_handles: true,
@@ -801,15 +802,20 @@ var similar = {
 
     ctx.lineWidth = dpr * this.line_width;
     ctx.setLineDash([]);
-    this.refine();
-    var runs = this.runs();
-    ctx.globalAlpha = this.opacity;
-    for (var i = 0; i < runs.length; i++){
-      ctx.strokeStyle = runs[i].colour;
-      ctx.fillStyle = runs[i].colour;
-      this.trace(ctx, runs[i], s, ox, oy, pw, ph, dpr);
+    if (this.draw_mode === "dots"){
+      chaos.prepare(this.iteration, pw, ph, s, ox, oy);
+      chaos.render(ctx, this.opacity, this.colour_mode);
+    } else {
+      this.refine();
+      var runs = this.runs();
+      ctx.globalAlpha = this.opacity;
+      for (var i = 0; i < runs.length; i++){
+        ctx.strokeStyle = runs[i].colour;
+        ctx.fillStyle = runs[i].colour;
+        this.trace(ctx, runs[i], s, ox, oy, pw, ph, dpr);
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
 
     if (this.show_handles && !plain){
       this.paint_handles(ctx, s, ox, oy, dpr);
