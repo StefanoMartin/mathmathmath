@@ -66,7 +66,8 @@ var figureEvents = function(){
       var d = similar.to_drawing(p.x, p.y);
       var t = readTransforms()[hit.index];
       drag = { type: hit.part, index: hit.index, was_fit: was_fit,
-               dx: d.x - t[0], dy: d.y - t[1], x: t[0], y: t[1] };
+               dx: d.x - t[0], dy: d.y - t[1], x: t[0], y: t[1],
+               rotation: t[2], scale: t[3], mirror: t[4] };
       setHover(hit.index);
       holdInteraction(true);
     } else if (!similar.view.fit){
@@ -86,7 +87,7 @@ var figureEvents = function(){
     if (!drag){
       if (e.pointerType === "mouse"){
         var hit = similar.handle_at(p.x, p.y);
-        canvas.style.cursor = hit ? (hit.part === "corner" ? "crosshair" : "move") : "";
+        canvas.style.cursor = hit ? (hit.part === "move" ? "move" : "crosshair") : "";
         setHover(hit ? hit.index : -1);
       }
       return;
@@ -114,8 +115,22 @@ var figureEvents = function(){
       if (drag.type === "move"){
         setTransformValue(drag.index, 0, roundTo(d.x - drag.dx, decimals));
         setTransformValue(drag.index, 1, roundTo(d.y - drag.dy, decimals));
+      } else if (drag.type === "side"){
+        // The square dot is where the upright side of the frame ends, w + col2:
+        // seen from the frame (turned back, unmirrored), its height over the
+        // base is size * stretch, and how far it leans over gives the slant.
+        if (drag.scale > 1e-6){
+          var r = drag.rotation * Math.PI / 180;
+          var vx = d.x - drag.x, vy = d.y - drag.y;
+          var along = vx * Math.cos(r) + vy * Math.sin(r);
+          var up = (vy * Math.cos(r) - vx * Math.sin(r)) * (drag.mirror ? -1 : 1);
+          var height = Math.max(up, 0.01 * drag.scale);
+          var slant = Math.atan2(along, height) * 180 / Math.PI;
+          setTransformValue(drag.index, 4, roundTo(height / drag.scale, 3));
+          setTransformValue(drag.index, 5, roundTo(Math.max(-MAX_SLANT, Math.min(MAX_SLANT, slant)), 1));
+        }
       } else {
-        // The dot is the corner w + z: its direction is the rotation, its distance the scale.
+        // The round dot is the corner w + col1: its direction is the rotation, its distance the scale.
         var zx = d.x - drag.x, zy = d.y - drag.y;
         var rotation = Math.atan2(zy, zx) * 180 / Math.PI;
         if (rotation < 0) { rotation += 360; }

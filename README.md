@@ -5,17 +5,19 @@ An interactive explorer of self-similar fractals, drawn in the browser.
 **Try it online: [stefanomartin.github.io/mathmathmath](https://stefanomartin.github.io/mathmathmath/)**
 
 A shape is copied by a few transforms: each one moves, turns and shrinks it,
-and may mirror it. The copies are copied again, generation after generation,
-and the figure that grows out of them is a fractal. Two transforms on a square
-give the Pythagoras tree; three on a triangle give the Sierpinski triangle.
+and may mirror, stretch or slant it. The copies are copied again, generation
+after generation, and the figure that grows out of them is a fractal. Two
+transforms on a square give the Pythagoras tree; three on a triangle give the
+Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
 
 ## What you can do
 
 - **Shape** – copy a square, line, triangle, circle, heart, star, hexagon,
   spiral or dot, or draw your own on a small pad.
-- **Transforms** – set the position, rotation, scale and mirroring of each one
-  with the sliders, or drag its green frame directly on the figure (drag the
-  dot to turn and resize it). Hovering a frame highlights its box in the panel,
+- **Transforms** – set the position, rotation, scale, stretch (height ÷ width),
+  slant and mirroring of each one with the sliders, or drag its green frame
+  directly on the figure: drag the round dot to turn and resize it, and the
+  square dot to stretch and slant it. Hovering a frame highlights its box in the panel,
   and the other way round. Press **H** to hide the frames.
 - **Repeat** – choose how many generations are calculated.
 - **Zoom** – scroll on the figure (or press **+** and **−**, or pinch on a
@@ -26,10 +28,12 @@ give the Pythagoras tree; three on a triangle give the Sierpinski triangle.
   copies by generation, by the transform that made them, or in one ink, pick a
   colour scheme or your own colours, set the line thickness, and make the copies
   see-through so that overlaps show deeper.
-- **Fractal dimension** – shown on the figure, worked out from the scales of the
-  transforms (exact when the copies do not overlap).
+- **Fractal dimension** – shown on the figure, worked out from how much the
+  transforms shrink (the affinity dimension when they stretch or slant; exact
+  when the copies do not overlap).
 - **Presets** – Pythagoras tree, Lévy C curve, dragon curve, Koch curve,
-  Sierpinski triangle and arrowhead, Vicsek cross, a tree of hearts and more.
+  Sierpinski triangle and arrowhead, Vicsek cross, Barnsley fern, maple leaf,
+  a tree of hearts and more.
 - **Favourites** – save the figures you like (with their colours), find them
   again in the Presets list, and move them between browsers with *Save to file* / *Load from file*.
 - **Undo** – every change can be undone and redone with the ↶ ↷ buttons on
@@ -75,7 +79,7 @@ npm run test:browser
 
 | Folder | What is tested |
 |---|---|
-| `tests/unit/engine.test.js` | Counting and building copies, mirroring, the zoom detail checked against a full calculation, zoom and pan, finding the frames, bounds |
+| `tests/unit/engine.test.js` | Counting and building copies, mirroring, stretch and slant, the zoom detail checked against a full calculation, zoom and pan, finding the frames, bounds, the dimension |
 | `tests/unit/shapes-colours.test.js` | Shapes stay in the square, simplified outlines, colour blending, dark paper |
 | `tests/unit/state.test.js` | Links read back the same, bad links are refused, favourites are cleaned, presets are valid, the zoom readout |
 | `tests/e2e/app.spec.js` | The page on a desktop: everything a person does with it |
@@ -102,9 +106,11 @@ npm run test:browser
 
 ## How it works
 
-Every copy is a similarity transform of the starting shape, stored as two
-complex numbers *z* and *w*: a point *p* goes to *z·p + w* (or *z·p̄ + w* for
-a mirrored copy). Applying a transform to a copy is then a couple of complex
+Every copy is an affine map of the starting shape, stored as six numbers: a
+2×2 matrix *M* and a shift *w*, so a point *p* goes to *M·p + w*. Each
+transform's matrix is built from its controls as
+turn × mirror × slant × (width, height), so with stretch 1 and slant 0 it is
+an ordinary turn-and-scale. Applying a transform to a copy is a dozen
 multiplications, so a few hundred thousand copies are calculated in
 milliseconds.
 

@@ -43,7 +43,8 @@ var applyState = function(state, keep_view){
 // p = points of a custom shape (x,y;x,y...), k = 0 for an open custom shape,
 // f = 1 for filled shapes, cs = colour scheme (its number, or "custom" with
 // cc = first,middle,last,paper colours), lw = line width,
-// t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
+// t = x,y,rotation,scale;... with ",1" added to a mirrored transform, and
+// ",mirrored,stretch,slant" to a stretched or slanted one.
 // c = colouring in a link: 0 one ink, 1 by generation (as in older links), 2 by transform.
 var COLOUR_CODES = { ink: 0, generation: 1, transform: 2 };
 

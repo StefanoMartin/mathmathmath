@@ -14,7 +14,7 @@ const close = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
 // Start every test from the same figure and a fixed window.
 function setup(transforms = PYTHAGORAS, repetition = 4){
   S.iteration = [];
-  transforms.forEach((t) => S.add_iteration(t[0], t[1], t[2], t[3], t[4]));
+  transforms.forEach((t) => S.add_iteration(t[0], t[1], t[2], t[3], t[4], t[5], t[6]));
   S.repetition = repetition;
   S.only_last = false;
   S.show_handles = false;
@@ -28,12 +28,15 @@ function setup(transforms = PYTHAGORAS, repetition = 4){
   S.refine();   // as every drawing does: no extra detail left from an earlier view
 }
 
-// The corners of copy i (from build() or refine()), in drawing units.
-function corners(buf, flips, i){
-  const j = i * 4, zr = buf[j], zi = buf[j + 1], x = buf[j + 2], y = buf[j + 3];
-  const ux = flips[i] ? zi : -zi, uy = flips[i] ? -zr : zr;
-  return [[x, y], [x + zr, y + zi], [x + zr + ux, y + zi + uy], [x + ux, y + uy]];
+// The corners of copy i (from build() or refine()), in drawing units:
+// the images of (0,0), (1,0), (1,1) and (0,1).
+function corners(buf, i){
+  const j = i * 6, [a, b, c, d, e, f] = buf.subarray(j, j + 6);
+  return [[e, f], [e + a, f + c], [e + a + b, f + c + d], [e + b, f + d]];
 }
+const det = (buf, i) => buf[i * 6] * buf[i * 6 + 3] - buf[i * 6 + 1] * buf[i * 6 + 2];
+// Apply a transform (as stored in S.iteration) to a point.
+const apply = (t, p) => [t.a * p[0] + t.b * p[1] + t.e, t.c * p[0] + t.d * p[1] + t.f];
 
 test("number_squares matches what build() makes", () => {
   for (const [transforms, rep] of [[[], 5], [[[0, 0, 0, 0.5]], 6], [PYTHAGORAS, 7],
@@ -55,7 +58,7 @@ test("max_repetition stays under MAX_SQUARES, one more would not", () => {
 
 test("the first generation is the transforms' frames (Pythagoras tree)", () => {
   setup(PYTHAGORAS, 1);
-  const t1 = corners(S.squares, S.flips, 1), t2 = corners(S.squares, S.flips, 2);
+  const t1 = corners(S.squares, 1), t2 = corners(S.squares, 2);
   const want1 = [[0, 1], [0.5, 1.5], [0, 2], [-0.5, 1.5]];
   const want2 = [[0.5, 1.5], [1, 1], [1.5, 1.5], [1, 2]];
   t1.forEach((p, k) => assert.ok(close(p[0], want1[k][0], 1e-3) && close(p[1], want1[k][1], 1e-3), `T1 corner ${k}`));
@@ -66,14 +69,10 @@ test("a copy of a copy applies the outer transform last", () => {
   setup(PYTHAGORAS, 2);
   // Generation 2, copy (T2 of T1): point p -> T2(T1(p)).
   const T = S.iteration;
-  const apply = (t, p) => {
-    const py = t.flip ? -p[1] : p[1];
-    return [t.zr * p[0] - t.zi * py + t.wr, t.zi * p[0] + t.zr * py + t.wi];
-  };
   const level2 = S.level_start[2];
   // build() makes generation 2 transform by transform: T1 of each, then T2 of each.
   const i = level2 + 2 + 0;   // T2 applied to generation-1 copy 0 (which is T1)
-  const got = corners(S.squares, S.flips, i)[1];
+  const got = corners(S.squares, i)[1];
   const want = apply(T[1], apply(T[0], [1, 0]));
   assert.ok(close(got[0], want[0]) && close(got[1], want[1]));
 });
@@ -81,27 +80,27 @@ test("a copy of a copy applies the outer transform last", () => {
 test("a mirrored transform flips its copies, and flipping twice undoes it", () => {
   setup([[0, 0, 0, 0.5, 1], [0.5, 0, 0, 0.5]], 2);
   const level1 = S.level_start[1], level2 = S.level_start[2];
-  assert.equal(S.flips[level1], 1);
-  assert.equal(S.flips[level1 + 1], 0);
-  assert.equal(S.flips[level2], 0);       // mirrored of mirrored
-  assert.equal(S.flips[level2 + 1], 1);   // mirrored of plain
+  // A mirrored copy turns the other way round: its matrix has a negative determinant.
+  assert.ok(det(S.squares, level1) < 0);
+  assert.ok(det(S.squares, level1 + 1) > 0);
+  assert.ok(det(S.squares, level2) > 0);       // mirrored of mirrored
+  assert.ok(det(S.squares, level2 + 1) < 0);   // mirrored of plain
   // A mirrored copy of the unit square at (0,0), scale 0.5: (0,1) goes to (0,-0.5).
-  const c = corners(S.squares, S.flips, level1);
+  const c = corners(S.squares, level1);
   assert.ok(close(c[3][0], 0) && close(c[3][1], -0.5));
 });
 
 // The copies whose centre lies in the window, as comparable keys (with the
 // transform that made each one, for colouring by transform).
-function inWindow(buf, flips, tags, from, to){
+function inWindow(buf, tags, from, to){
   const c = S.view_centre(), hw = S.canvas_w / 2 / S.view.s, hh = S.canvas_h / 2 / S.view.s;
   const keys = new Set();
   for (let i = from; i < to; i++){
-    const j = i * 4, sg = flips[i] ? -1 : 1;
-    const x = buf[j + 2] + 0.5 * (buf[j] - sg * buf[j + 1]);
-    const y = buf[j + 3] + 0.5 * (buf[j + 1] + sg * buf[j]);
+    const j = i * 6;
+    const x = buf[j + 4] + 0.5 * (buf[j] + buf[j + 1]);
+    const y = buf[j + 5] + 0.5 * (buf[j + 2] + buf[j + 3]);
     if (Math.abs(x - c.x) < hw && Math.abs(y - c.y) < hh){
-      keys.add([buf[j], buf[j + 1], buf[j + 2], buf[j + 3]].map((v) => Math.round(v * 1e8)).join(",") +
-               "," + flips[i] + ",T" + tags[i]);
+      keys.add([...buf.subarray(j, j + 6)].map((v) => Math.round(v * 1e8)).join(",") + ",T" + tags[i]);
     }
   }
   return keys;
@@ -113,7 +112,11 @@ for (const [name, transforms, rep, zoom, fx, fy] of [
   ["Pythagoras tree", PYTHAGORAS, 7, 3.3, 0.31, 0.37],
   ["Pythagoras tree, deeper", PYTHAGORAS, 7, 9, 0.6, 0.3],
   ["mirrored transforms", [[0, 1, 45, 0.6, 1], [0.5, 1.5, 315, 0.6]], 6, 4, 0.4, 0.4],
-  ["Sierpinski arrowhead", [[0, 0, 60, 0.5, 1], [0.25, 0.433, 0, 0.5], [0.75, 0.433, 300, 0.5, 1]], 5, 6, 0.5, 0.6]
+  ["Sierpinski arrowhead", [[0, 0, 60, 0.5, 1], [0.25, 0.433, 0, 0.5], [0.75, 0.433, 300, 0.5, 1]], 5, 6, 0.5, 0.6],
+  // Stretched and slanted: the same matrix in each transform (so every copy of
+  // a generation has the same size), with different shifts.
+  ["stretched transforms", [[0, 0, 0, 0.5, 0, 0.8], [0.5, 0, 0, 0.5, 0, 0.8], [0.25, 0.4, 0, 0.5, 0, 0.8]], 5, 5, 0.45, 0.55],
+  ["slanted and stretched transforms", [[0, 0, 30, 0.55, 0, 0.7, 25], [0.6, 0.2, 30, 0.55, 0, 0.7, 25]], 7, 4, 0.5, 0.5]
 ]){
   test(`zoom detail matches a full calculation: ${name}`, () => {
     setup(transforms, rep);
@@ -124,13 +127,22 @@ for (const [name, transforms, rep, zoom, fx, fy] of [
 
     let smallest = Infinity;
     for (let i = 0; i < S.extra_count; i++) { smallest = Math.min(smallest, S.extra_side[i]); }
-    const scale = Math.hypot(S.iteration[0].zr, S.iteration[0].zi);
-    const extra_generations = Math.round(Math.log(smallest) / Math.log(scale)) - rep;
-    const got = inWindow(S.extra, S.extra_flip, S.extra_tag, 0, S.extra_count);
+    const T = S.iteration[0];
+    // The size of the k-th generation, k = rep, rep + 1, ...
+    const sizes = [];
+    let M = [1, 0, 0, 1];
+    for (let k = 0; k < 40; k++){
+      sizes.push(app.largestStretch(...M));
+      M = [M[0] * T.a + M[1] * T.c, M[0] * T.b + M[1] * T.d, M[2] * T.a + M[3] * T.c, M[2] * T.b + M[3] * T.d];
+    }
+    const deepest = sizes.findIndex((v) => Math.abs(v - smallest) < 1e-6 * smallest);
+    assert.ok(deepest > rep, "the smallest copies are those of a deeper generation");
+    const extra_generations = deepest - rep;
+    const got = inWindow(S.extra, S.extra_tag, 0, S.extra_count);
 
     S.repetition = rep + extra_generations;
     S.build();
-    const want = inWindow(S.squares, S.flips, S.tags, S.level_start[rep + 1], S.total);
+    const want = inWindow(S.squares, S.tags, S.level_start[rep + 1], S.total);
     assert.ok(want.size > 0);
     assert.deepEqual([...got].sort(), [...want].sort());
   });
@@ -188,7 +200,7 @@ test("finding frames: inside, on the dot, near another dot, nothing", () => {
 test("the bounds hold every copy, and the frames while they are shown", () => {
   setup(PYTHAGORAS, 5);
   for (let i = 0; i < S.total; i++){
-    for (const [x, y] of corners(S.squares, S.flips, i)){
+    for (const [x, y] of corners(S.squares, i)){
       assert.ok(x >= S.min_x - 1e-9 && x <= S.max_x + 1e-9 && y >= S.min_y - 1e-9 && y <= S.max_y + 1e-9);
     }
   }
@@ -209,7 +221,7 @@ test("each copy knows the transform that made it", () => {
   }
   // The copies tagged T2 are exactly those inside T2's half of the tree (x > 0.5).
   for (let i = 1; i < S.total; i++){
-    const c = corners(S.squares, S.flips, i);
+    const c = corners(S.squares, i);
     const x = (c[0][0] + c[2][0]) / 2;
     assert.equal(S.tags[i], x > 0.5 ? 1 : 0);
   }
@@ -285,4 +297,77 @@ test("see-through copies are saved one per element in SVG, so overlaps deepen", 
   assert.doesNotMatch(solid, /opacity/);
   assert.ok((solid.match(/<path /g) || []).length < S.total);
   S.filled = false;
+});
+
+// ---- Stretch and slant (general affine transforms) ----
+
+test("stretch and slant: the unit square goes where the controls say", () => {
+  // Width 0.5, twice as tall, leaning 45 degrees to the right, not turned.
+  setup([[1, 2, 0, 0.5, 0, 2, 45]], 1);
+  const c = corners(S.squares, 1);
+  const want = [[1, 2], [1.5, 2], [2.5, 3], [2, 3]];
+  c.forEach((p, k) => assert.ok(close(p[0], want[k][0]) && close(p[1], want[k][1]), `corner ${k}: ${p}`));
+  // Turned by 90 degrees and mirrored: the base goes up, the upright side to the right.
+  setup([[0, 0, 90, 0.5, 1, 2, 0]], 1);
+  const m = corners(S.squares, 1);
+  assert.ok(close(m[1][0], 0) && close(m[1][1], 0.5), "base");
+  assert.ok(close(m[3][0], 1) && close(m[3][1], 0), "upright side");
+  assert.ok(det(S.squares, 1) < 0, "mirrored");
+});
+
+test("with stretch 1 and slant 0 a transform is the plain turn, scale and mirror", () => {
+  for (const [rot, size, mirror] of [[0, 0.5, 0], [45, 0.7071, 0], [315, 0.3, 1], [123.4, 0.9, 1]]){
+    S.iteration = [];
+    S.add_iteration(0.2, 0.3, rot, size, mirror);
+    S.add_iteration(0.2, 0.3, rot, size, mirror, 1, 0);
+    const [t, u] = S.iteration;
+    const r = rot * Math.PI / 180, sg = mirror ? -1 : 1;
+    // p -> z * p (or z * conj(p)) + w, with z = size * e^(i r)
+    const want = [size * Math.cos(r), -sg * size * Math.sin(r), size * Math.sin(r), sg * size * Math.cos(r), 0.2, 0.3];
+    for (const x of [t, u]){
+      [x.a, x.b, x.c, x.d, x.e, x.f].forEach((v, k) => assert.ok(close(v, want[k]), `${rot} ${k}`));
+    }
+  }
+});
+
+test("the size of a copy is how much it stretches lengths at most", () => {
+  assert.ok(close(app.largestStretch(0.5, 0, 0, 0.5), 0.5));
+  assert.ok(close(app.largestStretch(0, -0.3, 0.3, 0), 0.3));         // a turn
+  assert.ok(close(app.largestStretch(0.2, 0, 0, 0.9), 0.9));          // stretched
+  assert.ok(close(app.largestStretch(0, 0, 0, 0.16), 0.16));          // flattened to a line
+  assert.ok(close(app.largestStretch(1, 1, 0, 1), (1 + Math.sqrt(5)) / 2));   // a shear
+});
+
+test("the affinity dimension: stretched transforms, and plain ones as before", () => {
+  const dim = (ts) => { setup(ts, 1); return S.dimension(); };
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  // Copies half as wide and a quarter as tall (stretch 0.5): each counts as
+  // 1/2 * (1/4)^(D-1) above 1, so 4 of them give D = 1.5 and 2 give D = 1.
+  const flat = (x, y) => [x, y, 0, 0.5, 0, 0.5, 0];
+  near(dim([flat(0, 0), flat(0.5, 0), flat(0, 0.5), flat(0.5, 0.5)]), 1.5);
+  near(dim([flat(0, 0), flat(0.5, 0)]), 1);
+  // A slanted copy shrinks more one way than the other (its area is the same):
+  // a Sierpinski triangle of slanted copies still has a dimension between 1 and 2.
+  const d = dim([[0, 0, 0, 0.5, 0, 1, 30], [0.5, 0, 0, 0.5, 0, 1, 30], [0.25, 0.4, 0, 0.5, 0, 1, 30]]);
+  assert.ok(d > 1 && d < 2, String(d));
+  // Stretching past the side of the square: it does not shrink.
+  assert.equal(dim([[0, 0, 0, 0.5, 0, 2.5, 0], [0.5, 0, 0, 0.5]]), Infinity);
+  near(dim([[0, 0, 0, 0.5, 0, 1, 0], [0.5, 0, 0, 0.5, 0, 1, 0], [0.25, 0.433, 0, 0.5]]), Math.log(3) / Math.log(2));
+});
+
+test("finding slanted frames, and the square dot that stretches them", () => {
+  setup([[0, 0, 0, 1, 0, 1, 45]], 1);   // the corners (0,0), (1,0), (2,1), (1,1)
+  S.show_handles = true;
+  S.view = { fit: false, held: false, s: 100, x: 1, y: 0.5 };
+  const screen = (x, y) => [S.canvas_w / 2 + (x - 1) * 100, S.canvas_h / 2 - (y - 0.5) * 100];
+  assert.deepEqual({ ...S.handle_at(...screen(1.5, 0.6)) }, { index: 0, part: "move" }, "inside");
+  assert.equal(S.handle_at(...screen(0.2, 0.8)), null, "inside the square, but outside the leaning frame");
+  assert.deepEqual({ ...S.handle_at(...screen(1, 0)) }, { index: 0, part: "corner" });
+  assert.deepEqual({ ...S.handle_at(...screen(1, 1)) }, { index: 0, part: "side" });
+  // A frame flattened to a line can still be caught with a finger's reach.
+  setup([[0, 0, 0, 1, 0, 0, 0]], 1);
+  S.show_handles = true;
+  S.view = { fit: false, held: false, s: 100, x: 0.5, y: 0 };
+  assert.deepEqual({ ...S.handle_at(S.canvas_w / 2, S.canvas_h / 2 - 5, 14) }, { index: 0, part: "move" });
+  S.show_handles = false;
 });

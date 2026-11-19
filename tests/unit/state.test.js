@@ -42,6 +42,15 @@ test("the mirror flag is only written when set", () => {
   assert.match(link, /t=0,0,0,0\.5;1,0,0,0\.5,1$/);
 });
 
+test("stretch and slant are only written when used, and read back", () => {
+  const link = app.encodeState({ ...BASE, transforms: [[0, 0, 0, 0.5, 0, 1, 0], [1, 0, 0, 0.5, 1, 1, 0],
+                                                       [0, 0, 0, 0.5, 0, 2, 0], [0, 0, 0, 0.5, 1, 1, -15]] });
+  assert.match(link, /t=0,0,0,0\.5;1,0,0,0\.5,1;0,0,0,0\.5,0,2,0;0,0,0,0\.5,1,1,-15$/);
+  const back = app.decodeState("#" + link);
+  assert.deepEqual(plain(back.transforms), [[0, 0, 0, 0.5], [1, 0, 0, 0.5, 1], [0, 0, 0, 0.5, 0, 2, 0], [0, 0, 0, 0.5, 1, 1, -15]]);
+  assert.equal(app.validTransform([0, 0, 0, 0.5, 0, 2, 0, 9]), false, "too many values");
+});
+
 test("old links without colours leave the viewer's colours alone", () => {
   const state = app.decodeState("#r=6&l=0&c=1&t=0,1,45,0.707;0.5,1.5,315,0.707");
   assert.equal(state.colours, undefined);
@@ -109,6 +118,7 @@ test("saving a favourite under a used name replaces it", () => {
 test("every preset is a valid figure", () => {
   for (const p of app.PRESETS){
     assert.equal(app.validShape(p.shape), p.shape, p.name);
+    if (p.shape === "custom") { assert.deepEqual(plain(app.validCustom(p.custom)), plain(p.custom), p.name); }
     assert.ok(p.t.length >= 1 && p.t.every(app.validTransform), p.name);
     assert.ok(Number.isInteger(p.repeat) && p.repeat >= 0, p.name);
   }

@@ -169,6 +169,70 @@ test("dragging a frame's dot turns and resizes it", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("dragging a frame's square dot stretches and slants it", async ({ page }) => {
+  const errors = await open(page, PYTHAGORAS);
+  // T2 starts at (0.5, 1.5), turned by 315 degrees: its upright side ends at (1, 2).
+  const drag = async (from, to) => {
+    const a = await screenPoint(page, ...from), b = await screenPoint(page, ...to);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 5 });
+    await page.mouse.up();
+  };
+  await page.mouse.move(0, 0);
+  const side = await screenPoint(page, 1, 2);
+  expect(await page.evaluate(([x, y]) => {
+    const r = document.getElementById("similar_canvas").getBoundingClientRect();
+    return similar.handle_at(x - r.left - 1, y - r.top - 1);
+  }, [side.x, side.y])).toEqual({ index: 1, part: "side" });
+
+  await drag([1, 2], [1.5, 2.5]);       // twice as far along the same direction: twice as tall
+  let t2 = (await transforms(page))[1];
+  expect(t2[5]).toBeCloseTo(2, 2);       // stretch
+  expect(t2[6]).toBeCloseTo(0, 0);       // slant
+  expect(t2[2]).toBeCloseTo(315, 1);     // the turn and the width are left alone
+  expect(t2[3]).toBeCloseTo(0.707, 3);
+
+  await drag([1.5, 2.5], [1.5, 1.5]);   // leaning over by 45 degrees, back to the plain height
+  t2 = (await transforms(page))[1];
+  expect(t2[5]).toBeCloseTo(1, 2);
+  expect(t2[6]).toBeCloseTo(45, 0);
+  await expect(page).toHaveURL(/t=0,1,45,0\.707;0\.5,1\.5,315,0\.707,0,1,45$/);
+  expect(errors).toEqual([]);
+});
+
+test("Stretch and Slant change the figure and travel with the link", async ({ page }) => {
+  const errors = await open(page, PYTHAGORAS);
+  const before = await page.evaluate(() => [similar.max_y, similar.dimension()]);
+  const row = (name) => page.locator(".box_iteration").first().locator("tr.row", { hasText: new RegExp("^" + name + "$") });
+  await row("Stretch").locator(".number_slide").fill("0.5");
+  await row("Slant").locator(".number_slide").fill("20");
+  await expect(page).toHaveURL(/t=0,1,45,0\.707,0,0\.5,20;0\.5,1\.5,315,0\.707$/);
+  const after = await page.evaluate(() => [similar.max_y, similar.dimension()]);
+  expect(after[0]).toBeLessThan(before[0]);    // a flatter tree
+  expect(after[1]).toBeLessThan(before[1]);    // that shrinks more: a lower dimension
+  await expect(page.locator("#dimension")).toHaveText(/^Dimension \u2248 1\.\d{3}$/);
+
+  // The same link in a new page gives the same transforms.
+  const link = page.url();
+  const other = await page.context().newPage();
+  await open(other, link.split("#")[1]);
+  expect(await transforms(other)).toEqual(await transforms(page));
+  expect(errors).toEqual([]);
+});
+
+test("the Barnsley fern: stretched and slanted transforms, zoom detail included", async ({ page }) => {
+  const errors = await open(page);
+  await page.selectOption("#preset", { label: "Barnsley fern" });
+  await expect(page.locator("#dimension")).toHaveText("Dimension \u2248 1.866");
+  await expect(page.locator(".box_iteration")).toHaveCount(4);
+  // Zoomed into a frond, the extra generations are added.
+  const p = await screenPoint(page, 0.45, 0.45);
+  for (let k = 0; k < 4; k++) { await page.mouse.move(p.x, p.y); await page.mouse.wheel(0, -400); }
+  await expect.poll(() => page.evaluate(() => similar.refined && similar.extra_count > 0)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test("+ and - zoom; typing them in a field does not", async ({ page }) => {
   const errors = await open(page);
   await page.locator("#similar_canvas").click({ position: { x: 5, y: 5 } });

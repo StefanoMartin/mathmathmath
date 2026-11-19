@@ -192,7 +192,8 @@ var showFavourite = function(index){
 var showPreset = function(index){
   var p = PRESETS[index];
   if (!p) { return; }
-  applyState({ repeat: p.repeat, shape: p.shape, last: p.last, filled: !!p.filled, transforms: p.t });
+  applyState({ repeat: p.repeat, shape: p.shape, custom: p.custom, last: p.last, filled: !!p.filled,
+               transforms: p.t });
   pickEntry("p", index, p.name);
   scheduleBuild();
 };

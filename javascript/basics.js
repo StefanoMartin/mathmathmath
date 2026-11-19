@@ -2,7 +2,8 @@
 // used by the other files: reading fields, rounding, checking transforms and shapes.
 
 // Classic figures. Each transform is [x, y, rotation, scale] or, when it is
-// mirrored, [x, y, rotation, scale, 1]. "last" shows the last generation only,
+// mirrored, [x, y, rotation, scale, 1]; a stretched or slanted one is
+// [x, y, rotation, scale, mirrored, stretch, slant]. "last" shows the last generation only,
 // which is how the curves are usually drawn. Scales have four decimals
 // (0.7071 for 1/\u221a2, 0.3333 for 1/3) so the dimension shown is the textbook one.
 var PRESETS = [
@@ -26,7 +27,19 @@ var PRESETS = [
     t: [[0.15, 0.25, 20, 0.9]] },
   { name: "Vicsek cross", shape: "square", repeat: 5, last: false,
     t: [[0.3333, 0, 0, 0.3333], [0, 0.3333, 0, 0.3333], [0.3333, 0.3333, 0, 0.3333],
-        [0.6667, 0.3333, 0, 0.3333], [0.3333, 0.6667, 0, 0.3333]] }
+        [0.6667, 0.3333, 0, 0.3333], [0.3333, 0.6667, 0, 0.3333]] },
+  // Barnsley's fern and maple leaf: their textbook maps, scaled to about the
+  // size of the starting square. Each leaf is a slanted, stretched copy; the
+  // fern's stem is the whole fern squeezed thin. The fern is drawn with a line
+  // from the foot of its stem to its tip (the points T1 and T2 leave where
+  // they are), so each copy draws the middle of a frond.
+  { name: "Barnsley fern", shape: "custom", custom: { points: [[0.5, 0], [0.766, 0.995]], closed: false },
+    repeat: 9, last: true,
+    t: [[0.48, 0, 0, 0.04, 0, 4, 0], [0.075, 0.18, 357.3, 0.8509], [0.4, 0.045, 49, 0.3048, 0, 1.1173, -0.8],
+        [0.575, -0.086, 120, 0.3002, 1, 1.2075, 10.6]] },
+  { name: "Maple leaf", shape: "dot", repeat: 9, last: true,
+    t: [[0.413, 0.0485, 0, 0.14, 0, 3.6429, 1.1], [0.2485, 0.3625, 313.7, 0.6224, 0, 1.159, -0.2],
+        [0.277, -0.081, 46.2, 0.6507, 0, 1.0435, 0.1], [0.258, 0.488, 0, 0.49, 0, 1.0408, 0]] }
 ];
 
 // Most points in a custom shape.
@@ -60,14 +73,18 @@ var formatCount = function(n){
   return n.toLocaleString("en-US");
 };
 
-// A transform as it is written in links and files: the mirror flag only when set.
+// A transform as it is written in links and files: [x, y, rotation, scale],
+// then the mirror flag when set, then stretch and slant when either is not
+// the plain value (1 and 0), so older links and figures read the same.
 var compactTransform = function(t){
+  var stretch = t[5] === undefined ? 1 : t[5], slant = t[6] === undefined ? 0 : t[6];
+  if (stretch !== 1 || slant !== 0) { return [t[0], t[1], t[2], t[3], t[4] ? 1 : 0, stretch, slant]; }
   return t[4] ? t.slice(0, 5) : t.slice(0, 4);
 };
 
-// Is this [x, y, rotation, scale] or [x, y, rotation, scale, mirrored], all numbers?
+// Is this [x, y, rotation, scale(, mirrored(, stretch(, slant)))], all numbers?
 var validTransform = function(t){
-  return Array.isArray(t) && (t.length === 4 || t.length === 5) &&
+  return Array.isArray(t) && t.length >= 4 && t.length <= 7 &&
     t.every(function(v){ return typeof v === "number" && isFinite(v); });
 };
 

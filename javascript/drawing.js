@@ -97,7 +97,7 @@ var build = function(){
 
   similar.iteration = [];
   readTransforms().forEach(function(t){
-    similar.add_iteration(t[0], t[1], t[2], t[3], t[4]);
+    similar.add_iteration(t[0], t[1], t[2], t[3], t[4], t[5], t[6]);
   });
 
   // Keep the number of copies under MAX_SQUARES so the page doesn't freeze.
@@ -194,7 +194,7 @@ var updateDimension = function(){
   var D = similar.dimension();
   var text = "";
   if (D === Infinity){
-    text = "No fractal dimension: a scale is 1 or more";
+    text = "No fractal dimension: a transform does not shrink";
   } else if (D === 0){
     text = "Dimension 0: one transform shrinks all to a point";
   } else if (D !== null){

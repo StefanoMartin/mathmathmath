@@ -112,22 +112,27 @@ var INK = "#2a2a2a";         // plain drawing ("Colour by generation" off)
 var HANDLE_INK = "#2f6b3a";  // the green frames of the transforms
 var COLOUR_TABLE = [];       // 256 blended colours, first to last generation
 
+// How much the map [a b; c d] stretches lengths at most (its largest singular
+// value). For a turn-and-scale map this is just the scale.
+var largestStretch = function(a, b, c, d){
+  var p = a * a + b * b + c * c + d * d, q = a * d - b * c;
+  return Math.sqrt((p + Math.sqrt(Math.max(0, p * p - 4 * q * q))) / 2);
+};
+
 /*
- * Every copy is a similarity map applied to the seed shape, stored as two
- * complex numbers and a flag:
- *   p -> z*p + w          (flip = 0)
- *   p -> z*conj(p) + w    (flip = 1, a mirrored copy)
- * with z = scale*e^(i*angle) and w the translation. That is 4 floats per copy
- * (zr, zi, wr, wi) in one reusable Float64Array, and the flags beside it.
- * Applying a transform T = (zt, wt, ft) to a copy S = (z, w, f) gives
- *   ft = 0:  z' = zt*z,        w' = zt*w + wt,        f' = f
- *   ft = 1:  z' = zt*conj(z),  w' = zt*conj(w) + wt,  f' = 1 - f
- * so each new copy costs a handful of multiplications and no allocation.
+ * Every copy is an affine map applied to the seed shape, stored as six numbers
+ * (a, b, c, d, e, f) in one reusable Float64Array:
+ *   p -> [a b; c d] * p + (e, f)
+ * The columns (a, c) and (b, d) are where the sides of the unit square go, so
+ * a copy occupies the parallelogram w, w + col1, w + col1 + col2, w + col2,
+ * with w = (e, f). A mirrored copy is one whose matrix has a negative
+ * determinant. A transform made only of moving, turning, scaling and mirroring
+ * gives exactly the old "similar" copies; stretching and slanting give the rest.
+ *
+ * Applying a transform T to a copy S gives T o S: the matrix T*S and the shift
+ * T*wS + wT, so each new copy costs a dozen multiplications and no allocation.
  * Generations are stored contiguously; level_start[k] is the index of the
  * first copy of generation k (and level_start[last] is the total).
- *
- * A copy occupies the image of the unit square: corners w, w+z, w+z+u, w+u,
- * where u is z turned a quarter turn (to the left, or to the right if flipped).
  *
  * When the view is zoomed in, refine() adds further generations for the part
  * on screen only, so that the smallest copies stay as fine as in the full
@@ -145,17 +150,16 @@ var similar = {
   line_width: 1.5,         // in CSS pixels
   shape: null,             // see set_shape()
 
-  squares: new Float64Array(4),
-  flips: new Uint8Array(1),
+  squares: new Float64Array(6),
   tags: new Uint8Array(1), // for each copy, the transform that made it (outermost), or SEED_TAG
   level_start: [0, 1],
   total: 1,
   geometry_version: 0,
 
   // Extra generations for the zoomed-in view (see refine()).
-  extra: null,             // copies, 4 floats each
-  extra_flip: null,        // 1 if the copy is mirrored
-  extra_side: null,        // side of each copy
+  extra: null,             // copies, 6 floats each
+  extra_tag: null,         // transform tag of each copy
+  extra_side: null,        // size of each copy (how much it stretches lengths at most)
   extra_open: null,        // 1 if the copy was expanded into smaller ones
   extra_tone: null,        // ink tone of each copy, 0 .. TONES - 1
   tone_count: [],          // how many copies use each tone
@@ -211,15 +215,21 @@ var similar = {
   },
 
   // x, y in sides of the seed square; rotation in degrees; size is the scale
-  // factor; mirror flips the copy over before it is turned.
-  add_iteration: function(x, y, rotation, size, mirror){
+  // factor (the new width); stretch is height / width (1: unchanged); slant, in
+  // degrees, leans the upright sides over (0: unchanged); mirror flips the copy
+  // over before it is turned. The map is
+  //   M = Turn(rotation) * Mirror * [1 tan(slant); 0 1] * [size 0; 0 size*stretch]
+  // so the base of the square keeps its length and direction under the slant.
+  add_iteration: function(x, y, rotation, size, mirror, stretch, slant){
+    if (stretch === undefined) { stretch = 1; }
+    if (slant === undefined) { slant = 0; }
     var r = rotation * Math.PI / 180.0;
+    var cs = Math.cos(r), sn = Math.sin(r);
+    var h = size * stretch, t = Math.tan(slant * Math.PI / 180), m = mirror ? -1 : 1;
     this.iteration.push({
-      zr: size * Math.cos(r),
-      zi: size * Math.sin(r),
-      wr: x,
-      wi: y,
-      flip: mirror ? 1 : 0
+      a: cs * size, b: cs * t * h - sn * m * h,
+      c: sn * size, d: sn * t * h + cs * m * h,
+      e: x, f: y
     });
   },
 
@@ -249,16 +259,14 @@ var similar = {
     var total = n ? this.number_squares(reps) : 1;
 
     // Reuse the buffers; grow them only when needed.
-    if (this.squares.length < total * 4){
-      this.squares = new Float64Array(total * 4);
-      this.flips = new Uint8Array(total);
+    if (this.squares.length < total * 6){
+      this.squares = new Float64Array(total * 6);
       this.tags = new Uint8Array(total);
     }
-    var sq = this.squares, fl = this.flips, tg = this.tags;
+    var sq = this.squares, tg = this.tags;
 
     // Seed: the identity map.
-    sq[0] = 1; sq[1] = 0; sq[2] = 0; sq[3] = 0;
-    fl[0] = 0;
+    sq[0] = 1; sq[1] = 0; sq[2] = 0; sq[3] = 1; sq[4] = 0; sq[5] = 0;
     tg[0] = SEED_TAG;
 
     var level_start = [0, 1];
@@ -266,16 +274,16 @@ var similar = {
 
     for (var level = 0; level < reps; level++){
       for (var t = 0; t < n; t++){
-        var tzr = T[t].zr, tzi = T[t].zi, twr = T[t].wr, twi = T[t].wi, tf = T[t].flip;
+        var ta = T[t].a, tb = T[t].b, tc = T[t].c, td = T[t].d, te = T[t].e, tf = T[t].f;
         for (var i = prev_start; i < prev_end; i++){
-          var j = i * 4, o = out * 4;
-          var zr = sq[j], zi = sq[j + 1], wr = sq[j + 2], wi = sq[j + 3];
-          if (tf) { zi = -zi; wi = -wi; }   // a mirrored transform conjugates what it copies
-          sq[o]     = tzr * zr - tzi * zi;
-          sq[o + 1] = tzr * zi + tzi * zr;
-          sq[o + 2] = tzr * wr - tzi * wi + twr;
-          sq[o + 3] = tzr * wi + tzi * wr + twi;
-          fl[out] = fl[i] ^ tf;
+          var j = i * 6, o = out * 6;
+          var a = sq[j], b = sq[j + 1], c = sq[j + 2], d = sq[j + 3], e = sq[j + 4], f = sq[j + 5];
+          sq[o]     = ta * a + tb * c;
+          sq[o + 1] = ta * b + tb * d;
+          sq[o + 2] = tc * a + td * c;
+          sq[o + 3] = tc * b + td * d;
+          sq[o + 4] = ta * e + tb * f + te;
+          sq[o + 5] = tc * e + td * f + tf;
           tg[out] = t;              // T(t) is applied last, outside everything else
           out++;
         }
@@ -297,7 +305,7 @@ var similar = {
   },
 
   // What to draw: a list of runs, drawn in order, each in one colour:
-  //   {colour, buf, flip, from, to, flags, off, tones, tone, tags, tag, order}
+  //   {colour, buf, from, to, flags, off, tones, tone, tags, tag, order}
   // A run covers copies from..to of buf (or order[from..to] if it has an order).
   // It skips the copies that were expanded (flags[i - off] = 1), which leaves
   // only the finest ones: the "last generation" of a refined view; and, when
@@ -315,7 +323,7 @@ var similar = {
     // Generation by generation, so that the smaller copies lie on top.
     var base = function(colour, level, tag){
       runs.push({
-        colour: colour, buf: self.squares, flip: self.flips, from: ls[level], to: ls[level + 1],
+        colour: colour, buf: self.squares, from: ls[level], to: ls[level + 1],
         flags: leaves_only ? self.base_open : null, off: ls[last],
         tags: tag === undefined ? null : self.tags, tag: tag
       });
@@ -334,7 +342,7 @@ var similar = {
     if (this.refined && this.extra_count){
       var flags = leaves_only ? this.extra_open : null;
       var extra = function(colour, more){
-        var run = { colour: colour, buf: self.extra, flip: self.extra_flip,
+        var run = { colour: colour, buf: self.extra,
                     from: 0, to: self.extra_count, flags: flags, off: 0 };
         for (var key in more) { run[key] = more[key]; }
         runs.push(run);
@@ -368,21 +376,34 @@ var similar = {
     return runs;
   },
 
-  // The similarity dimension of the figure: the D for which the scales s of the
-  // transforms satisfy sum(s^D) = 1. It is the fractal dimension when the copies
-  // do not overlap. null: no transforms; Infinity: a scale is 1 or more (the
-  // copies do not shrink); 0: a single transform (everything shrinks to a point).
+  // The fractal dimension of the figure. For transforms that only turn and
+  // scale, it is the D for which the scales s satisfy sum(s^D) = 1 (the
+  // similarity dimension). Stretched or slanted transforms shrink by different
+  // amounts in different directions, s1 >= s2 (the singular values); then each
+  // counts as s1^D up to D = 1, s1 * s2^(D-1) up to D = 2, and (s1*s2)^(D/2)
+  // beyond (Falconer's affinity dimension, which is the same number when
+  // s1 = s2). It is the fractal dimension when the copies do not overlap.
+  // null: no transforms; Infinity: a transform does not shrink (s1 >= 1);
+  // 0: a single transform (everything shrinks to a point).
   dimension: function(){
-    var scales = this.iteration.map(function(t){ return Math.sqrt(t.zr * t.zr + t.zi * t.zi); })
-      .filter(function(v){ return v > 1e-12; });
-    if (!scales.length) { return null; }
-    if (scales.some(function(v){ return v >= 1; })) { return Infinity; }
-    if (scales.length === 1) { return 0; }
+    var maps = [];
+    this.iteration.forEach(function(t){
+      var s1 = largestStretch(t.a, t.b, t.c, t.d);
+      if (s1 > 1e-12) { maps.push([s1, Math.abs(t.a * t.d - t.b * t.c) / s1]); }
+    });
+    if (!maps.length) { return null; }
+    if (maps.some(function(m){ return m[0] >= 1 - 1e-12; })) { return Infinity; }
+    if (maps.length === 1) { return 0; }
+    var phi = function(m, D){
+      if (D <= 1) { return Math.pow(m[0], D); }
+      if (D <= 2) { return m[0] * Math.pow(m[1], D - 1); }
+      return Math.pow(m[0] * m[1], D / 2);
+    };
     var excess = function(D){
-      return scales.reduce(function(sum, v){ return sum + Math.pow(v, D); }, 0) - 1;
+      return maps.reduce(function(sum, m){ return sum + phi(m, D); }, 0) - 1;
     };
     var lo = 0, hi = 1;
-    while (excess(hi) > 0) { lo = hi; hi *= 2; }
+    while (excess(hi) > 0 && hi < 1e6) { lo = hi; hi *= 2; }
     for (var k = 0; k < 80; k++){
       var mid = (lo + hi) / 2;
       if (excess(mid) > 0) { lo = mid; } else { hi = mid; }
@@ -393,23 +414,22 @@ var similar = {
   /*
    * Extra generations for a zoomed-in view.
    *
-   * Copies are expanded into smaller ones until their side is below
-   * (largest side of the last generation) / zoom, so zooming in by some
+   * The size of a copy is how much it stretches lengths at most (its scale,
+   * for a turn-and-scale copy). Copies are expanded into smaller ones until
+   * their size is below (largest size of the last generation) / zoom, so zooming in by some
    * factor makes everything that much finer, and nothing changes at zoom 1.
    * Going by size rather than by generation count keeps the detail even
    * when the transforms have different scales.
    *
    * Only what can be seen is kept: all the descendants of the unit square lie
    * in a disc of radius R around its centre, so the descendants of any copy
-   * lie in the image of that disc, and a copy whose disc misses the window
-   * is dropped with everything below it. This needs every scale to be below 1.
+   * lie in the image of that disc (inside a disc of radius size * R), and a
+   * copy whose disc misses the window is dropped with everything below it.
+   * This needs every transform to shrink (size below 1).
    *
    * Children are composed on the inside (M o T rather than T o M, which
    * build() uses). Each generation is the same set of copies either way,
-   * but only this order keeps children next to their parent. For M = (z, w, f)
-   * and T = (zt, wt, ft):
-   *   f = 0:  z' = z*zt,        w' = z*wt + w,        f' = ft
-   *   f = 1:  z' = z*conj(zt),  w' = z*conj(wt) + w,  f' = 1 - ft
+   * but only this order keeps children next to their parent.
    */
   refine: function(){
     var v = this.view;
@@ -428,17 +448,18 @@ var similar = {
     var zoom = v.s / fit;
     if (zoom <= 1.0001) { return; }
 
-    // Largest scale, and the radius R of a disc around (0.5, 0.5) that holds
+    // Largest size, and the radius R of a disc around (0.5, 0.5) that holds
     // the unit square and is mapped into itself by every transform.
     var s_max = 0, R = Math.SQRT1_2, t, i, j, k;
     for (t = 0; t < n; t++){
-      var scale = Math.sqrt(T[t].zr * T[t].zr + T[t].zi * T[t].zi);
-      if (scale > 0.999) { return; }
-      if (scale > s_max) { s_max = scale; }
-      var ci = T[t].flip ? -0.5 : 0.5;   // image of the centre (0.5, 0.5)
-      var mx = 0.5 * T[t].zr - ci * T[t].zi + T[t].wr - 0.5;
-      var my = ci * T[t].zr + 0.5 * T[t].zi + T[t].wi - 0.5;
-      R = Math.max(R, Math.sqrt(mx * mx + my * my) / (1 - scale));
+      var tr = T[t];
+      var size = largestStretch(tr.a, tr.b, tr.c, tr.d);
+      if (size > 0.999) { return; }
+      if (size > s_max) { s_max = size; }
+      // How far the transform moves the centre (0.5, 0.5).
+      var mx = 0.5 * (tr.a + tr.b) + tr.e - 0.5;
+      var my = 0.5 * (tr.c + tr.d) + tr.f - 0.5;
+      R = Math.max(R, Math.sqrt(mx * mx + my * my) / (1 - size));
     }
     if (s_max < 1e-6) { return; }
     var log_s = Math.log(s_max);          // negative
@@ -452,8 +473,7 @@ var similar = {
     var x0 = c.x - hw, x1 = c.x + hw, y0 = c.y - hh, y1 = c.y + hh;
 
     if (!this.extra){
-      this.extra = new Float64Array(MAX_EXTRA * 4);
-      this.extra_flip = new Uint8Array(MAX_EXTRA);
+      this.extra = new Float64Array(MAX_EXTRA * 6);
       this.extra_tag = new Uint8Array(MAX_EXTRA);
       this.extra_side = new Float32Array(MAX_EXTRA);
       this.extra_open = new Uint8Array(MAX_EXTRA);
@@ -461,36 +481,32 @@ var similar = {
       this.queue_a = new Int32Array(MAX_EXTRA);
       this.queue_b = new Int32Array(MAX_EXTRA);
     }
-    var ex = this.extra, xf = this.extra_flip, xt = this.extra_tag, sides = this.extra_side;
+    var ex = this.extra, xt = this.extra_tag, sides = this.extra_side;
     var open = this.extra_open, tones = this.extra_tone;
     var tone_count = [];
     for (k = 0; k < TONES; k++) { tone_count.push(0); }
     var count = 0, largest = 0;
     var sink = this.queue_a, sunk = 0;   // where new copies wait, and how many
 
-    // Append the visible children of the copy (zr, zi, wr, wi, f). Children are
-    // made inside their parent, so they keep its transform tag.
-    var emit = function(zr, zi, wr, wi, f, tag){
+    // Append the visible children of the copy p -> [a b; c d] p + (e, f).
+    // Children are made inside their parent, so they keep its transform tag.
+    var emit = function(a, b, c, d, e, f, tag){
       for (var q = 0; q < n; q++){
         var tr = T[q];
-        var a = tr.zr, b = tr.zi, e = tr.wr, d = tr.wi;
-        if (f) { b = -b; d = -d; }
-        var czr = zr * a - zi * b, czi = zr * b + zi * a;
-        var cwr = zr * e - zi * d + wr, cwi = zr * d + zi * e + wi;
-        var cf = f ^ tr.flip;
-        var side = Math.sqrt(czr * czr + czi * czi);
+        var ca = a * tr.a + b * tr.c, cb = a * tr.b + b * tr.d;
+        var cc = c * tr.a + d * tr.c, cd = c * tr.b + d * tr.d;
+        var ce = a * tr.e + b * tr.f + e, cf = c * tr.e + d * tr.f + f;
+        var side = largestStretch(ca, cb, cc, cd);
         var r = side * R;
-        // Centre of the copy: w + (z + u) / 2.
-        var cx = cwr + 0.5 * (cf ? czr + czi : czr - czi);
-        var cy = cwi + 0.5 * (cf ? czi - czr : czi + czr);
+        // Centre of the copy: the image of (0.5, 0.5).
+        var cx = ce + 0.5 * (ca + cb), cy = cf + 0.5 * (cc + cd);
         if (cx + r < x0 || cx - r > x1 || cy + r < y0 || cy - r > y1) { continue; }
-        var o = count * 4;
-        ex[o] = czr; ex[o + 1] = czi; ex[o + 2] = cwr; ex[o + 3] = cwi;
-        xf[count] = cf;
+        var o = count * 6;
+        ex[o] = ca; ex[o + 1] = cb; ex[o + 2] = cc; ex[o + 3] = cd; ex[o + 4] = ce; ex[o + 5] = cf;
         xt[count] = tag;
         sides[count] = side;
         open[count] = 0;
-        // Ink by size: the generation a copy of this side would belong to.
+        // Ink by size: the generation a copy of this size would belong to.
         var tone = side > 0 ? Math.round((Math.log(side) / log_s - shift) / generations * (TONES - 1)) : TONES - 1;
         tone = tone < 0 ? 0 : (tone > TONES - 1 ? TONES - 1 : tone);
         tones[count] = tone;
@@ -504,7 +520,7 @@ var similar = {
     };
 
     // Start from the last calculated generation: which copies are visible and large enough?
-    var sq = this.squares, fl = this.flips, ls = this.level_start;
+    var sq = this.squares, ls = this.level_start;
     var from = ls[ls.length - 2], to = this.total;
     if (this.base_open.length < to - from){
       this.base_open = new Uint8Array(to - from);
@@ -514,13 +530,12 @@ var similar = {
 
     var opens = 0;
     for (i = from; i < to; i++){
-      j = i * 4;
-      var bzr = sq[j], bzi = sq[j + 1];
-      var bs = Math.sqrt(bzr * bzr + bzi * bzi);
+      j = i * 6;
+      var bs = largestStretch(sq[j], sq[j + 1], sq[j + 2], sq[j + 3]);
       if (bs <= min_side) { continue; }
       var br = bs * R;
-      var bx = sq[j + 2] + 0.5 * (fl[i] ? bzr + bzi : bzr - bzi);
-      var by = sq[j + 3] + 0.5 * (fl[i] ? bzi - bzr : bzi + bzr);
+      var bx = sq[j + 4] + 0.5 * (sq[j] + sq[j + 1]);
+      var by = sq[j + 5] + 0.5 * (sq[j + 2] + sq[j + 3]);
       if (bx + br < x0 || bx - br > x1 || by + br < y0 || by - br > y1) { continue; }
       base_open[i - from] = 1;
       opens++;
@@ -535,8 +550,8 @@ var similar = {
     }
     for (i = from; i < to; i++){
       if (base_open[i - from]){
-        j = i * 4;
-        emit(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i], this.tags[i]);
+        j = i * 6;
+        emit(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], sq[j + 4], sq[j + 5], this.tags[i]);
       }
     }
 
@@ -564,8 +579,8 @@ var similar = {
         i = cur[k];
         if (sides[i] > threshold){
           open[i] = 1;
-          j = i * 4;
-          emit(ex[j], ex[j + 1], ex[j + 2], ex[j + 3], xf[i], xt[i]);
+          j = i * 6;
+          emit(ex[j], ex[j + 1], ex[j + 2], ex[j + 3], ex[j + 4], ex[j + 5], xt[i]);
         } else {
           sink[sunk++] = i;
         }
@@ -590,26 +605,25 @@ var similar = {
       if (y > max_y) { max_y = y; }
     };
     // The given points (in the unit square) of one copy.
-    var points = function(zr, zi, x, y, flip, list){
-      var ux = flip ? zi : -zi, uy = flip ? -zr : zr;
+    var points = function(a, b, c, d, e, f, list){
       for (var k = 0; k < list.length; k++){
         var px = list[k][0], py = list[k][1];
-        add(x + px * zr + py * ux, y + px * zi + py * uy);
+        add(e + px * a + py * b, f + px * c + py * d);
       }
     };
 
     // The corners of the shape's bounding box are enough: they hold the shape.
-    var sq = this.squares, fl = this.flips;
+    var sq = this.squares;
     for (var i = this.level_start[this.visible_levels()[0]]; i < this.total; i++){
-      var j = i * 4;
-      points(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i], box);
+      var j = i * 6;
+      points(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], sq[j + 4], sq[j + 5], box);
     }
     // Keep the handles (the frames of the transforms) in view too.
     if (this.show_handles){
       var frame = [[0, 0], [1, 0], [1, 1], [0, 1]];
       for (var t = 0; t < this.iteration.length; t++){
         var T = this.iteration[t];
-        points(T.zr, T.zi, T.wr, T.wi, T.flip, frame);
+        points(T.a, T.b, T.c, T.d, T.e, T.f, frame);
       }
     }
 
@@ -689,51 +703,68 @@ var similar = {
 
   // ---- Handles: the frame of each transform (where it puts the unit square) ----
 
-  // Which handle is under (mx, my)? Returns {index, part: "move" | "corner"} or null.
+  // Which handle is under (mx, my)? Returns {index, part} or null, where part is
+  //   "corner": the round dot on w + col1 (turn and resize),
+  //   "side":   the square dot on w + col2 (stretch and slant),
+  //   "move":   anywhere in the frame.
   // slop: extra reach in CSS pixels, for fingers (a frame can be caught from just outside it).
   handle_at: function(mx, my, slop){
     if (!this.show_handles) { return null; }
     slop = slop || 0;
     var s = this.screen_scale();
     var p = this.to_drawing(mx, my);
-    var corner = null, corner_gap = Infinity, corner_close = false;
-    var best = null, best_gap = Infinity, best_side = Infinity;
+    var dot = null, dot_gap = Infinity, dot_close = false;
+    var best = null, best_gap = Infinity, best_area = Infinity;
+
+    // Distance in pixels from p to the segment (x0, y0) - (x1, y1).
+    var segment = function(x0, y0, x1, y1){
+      var dx = x1 - x0, dy = y1 - y0, len = dx * dx + dy * dy;
+      var u = len > 0 ? Math.max(0, Math.min(1, ((p.x - x0) * dx + (p.y - y0) * dy) / len)) : 0;
+      return Math.hypot(p.x - x0 - u * dx, p.y - y0 - u * dy) * s;
+    };
 
     for (var i = 0; i < this.iteration.length; i++){
       var t = this.iteration[i];
-      var side = Math.sqrt(t.zr * t.zr + t.zi * t.zi);
 
-      // The dot on the corner w + z turns and resizes: the nearest one in reach wins.
-      var dot_reach = Math.max(4, Math.min(7, side * s / 3));
-      var cx = p.x - (t.wr + t.zr), cy = p.y - (t.wi + t.zi);
-      var gap = Math.sqrt(cx * cx + cy * cy) * s;
-      if (gap <= dot_reach + slop && gap < corner_gap){
-        corner = { index: i, part: "corner" };
-        corner_gap = gap;
-        corner_close = gap <= dot_reach;   // right on the dot, not only near it
+      // The two dots: the nearest one in reach wins.
+      var reach = Math.max(4, Math.min(7, Math.min(Math.hypot(t.a, t.c), Math.hypot(t.b, t.d)) * s / 3));
+      var spots = [["corner", t.e + t.a, t.f + t.c], ["side", t.e + t.b, t.f + t.d]];
+      for (var k = 0; k < 2; k++){
+        var gap = Math.hypot(p.x - spots[k][1], p.y - spots[k][2]) * s;
+        if (gap <= reach + slop && gap < dot_gap){
+          dot = { index: i, part: spots[k][0] };
+          dot_gap = gap;
+          dot_close = gap <= reach;   // right on the dot, not only near it
+        }
       }
 
-      // Anywhere inside the frame moves it: (p - w) / z must lie in the unit
-      // square (or in its mirror image, for a mirrored transform). With a slop,
-      // a frame just outside also counts, but one the pointer is inside comes first.
-      if (side > 0){
-        var ux = p.x - t.wr, uy = p.y - t.wi;
-        var a = (ux * t.zr + uy * t.zi) / (side * side);
-        var b = (uy * t.zr - ux * t.zi) / (side * side);
-        if (t.flip) { b = -b; }
-        var outside = Math.max(0, -a, a - 1, -b, b - 1) * side * s;   // pixels outside the frame
-        if (outside <= slop &&
-            (outside < best_gap || (outside === best_gap && side < best_side))){
-          best = { index: i, part: "move" };
-          best_gap = outside;
-          best_side = side;
-        }
+      // Anywhere inside the frame moves it: M^-1 (p - w) must lie in the unit
+      // square. With a slop, a frame just outside also counts, but one the
+      // pointer is inside comes first, and of those the smallest.
+      var det = t.a * t.d - t.b * t.c, area = Math.abs(det);
+      var outside = 0, inside = false;
+      if (area > 1e-12){
+        var ux = p.x - t.e, uy = p.y - t.f;
+        var qa = (t.d * ux - t.b * uy) / det, qb = (t.a * uy - t.c * ux) / det;
+        inside = qa >= 0 && qa <= 1 && qb >= 0 && qb <= 1;
+      }
+      if (!inside){
+        var x0 = t.e, y0 = t.f, x1 = x0 + t.a, y1 = y0 + t.c;
+        var x2 = x1 + t.b, y2 = y1 + t.d, x3 = x0 + t.b, y3 = y0 + t.d;
+        outside = Math.min(segment(x0, y0, x1, y1), segment(x1, y1, x2, y2),
+                           segment(x2, y2, x3, y3), segment(x3, y3, x0, y0));
+      }
+      if (outside <= slop &&
+          (outside < best_gap || (outside === best_gap && area < best_area))){
+        best = { index: i, part: "move" };
+        best_gap = outside;
+        best_area = area;
       }
     }
     // Right on a dot; else inside a frame; else near a dot; else near a frame.
-    if (corner && corner_close) { return corner; }
+    if (dot && dot_close) { return dot; }
     if (best && best_gap === 0) { return best; }
-    return corner || best;
+    return dot || best;
   },
 
   // ---- Drawing ----
@@ -789,7 +820,7 @@ var similar = {
   // On screen a copy starts at (X, Y), runs along (dx, -dy) and rises along (ux, uy):
   // the shape point (px, py) lands at (X + px*dx + py*ux, Y - px*dy + py*uy).
   trace: function(ctx, run, s, ox, oy, pw, ph, dpr){
-    var sq = run.buf, fl = run.flip, flags = run.flags, off = run.off;
+    var sq = run.buf, flags = run.flags, off = run.off;
     var tones = run.tones || null, tone = run.tone;
     var tags = run.tags || null, tag = run.tag, order = run.order || null;
     // See-through copies are painted one by one, so that where they overlap the
@@ -810,19 +841,18 @@ var similar = {
       if (flags !== null && flags[i - off] === 1) { continue; }
       if (tones !== null && tones[i] !== tone) { continue; }
       if (tags !== null && tags[i] !== tag) { continue; }
-      var j = i * 4;
-      var dx = sq[j] * s, dy = sq[j + 1] * s;
-      var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
-      var ux = fl[i] ? dy : -dy, uy = fl[i] ? dx : -dx;
+      var j = i * 6;
+      var dx = sq[j] * s, dy = sq[j + 2] * s, ux = sq[j + 1] * s, uy = -sq[j + 3] * s;
+      var X = sq[j + 4] * s + ox, Y = oy - sq[j + 5] * s;
 
       if (dot){
         var DX = X + px0 * dx + py0 * ux, DY = Y - px0 * dy + py0 * uy;
         if (DX < -half || DX > pw + half || DY < -half || DY > ph + half) { continue; }
         ctx.rect(DX - half, DY - half, 2 * half, 2 * half);
       } else {
-        // Centre of the copy's square and (an upper bound of) its half diagonal.
+        // Centre of the copy's frame and its longer half diagonal.
         var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
-        var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
+        var r = 0.5 * Math.sqrt(dx * dx + dy * dy + ux * ux + uy * uy + 2 * Math.abs(dx * ux - dy * uy));
         if (cx + r < 0 || cx - r > pw || cy + r < 0 || cy - r > ph) { continue; }
 
         if (r < TINY){
@@ -838,7 +868,7 @@ var similar = {
           var xs = r < detail ? cxs : fx, ys = r < detail ? cys : fy, n = xs.length;
           // A mirrored copy is traced backwards, so all filled copies turn the
           // same way and overlapping ones add up instead of cancelling out.
-          var back = fill && fl[i] === 1;
+          var back = fill && sq[j] * sq[j + 3] < sq[j + 1] * sq[j + 2];
           var k = back ? n - 1 : 0, step = back ? -1 : 1;
           ctx.moveTo(X + xs[k] * dx + ys[k] * ux, Y - xs[k] * dy + ys[k] * uy);
           for (var m = 1; m < n; m++){
@@ -880,9 +910,8 @@ var similar = {
       // Coloured by transform, each frame has the colour of the copies it makes.
       var ink = this.colour_mode === "transform" ? transformColour(i, this.iteration.length) : HANDLE_INK;
       var t = this.iteration[i];
-      var dx = t.zr * s, dy = t.zi * s;
-      var ux = t.flip ? dy : -dy, uy = t.flip ? dx : -dx;
-      var X = t.wr * s + ox, Y = oy - t.wi * s;
+      var dx = t.a * s, dy = t.c * s, ux = t.b * s, uy = -t.d * s;
+      var X = t.e * s + ox, Y = oy - t.f * s;
 
       var frame = function(){
         ctx.beginPath();
@@ -917,19 +946,22 @@ var similar = {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // The corner dot (turn and resize), with a pale ring.
-      var r = (on ? 6 : 4) * dpr;
+      // The round dot (turn and resize) and the square one (stretch and
+      // slant), each with a pale ring.
+      var r = (on ? 6 : 4) * dpr, q = (on ? 5 : 3.5) * dpr, g = 1.5 * dpr;
       ctx.fillStyle = PAPER;
       ctx.beginPath();
-      ctx.arc(X + dx, Y - dy, r + 1.5 * dpr, 0, 2 * Math.PI);
+      ctx.arc(X + dx, Y - dy, r + g, 0, 2 * Math.PI);
+      ctx.rect(X + ux - q - g, Y + uy - q - g, 2 * (q + g), 2 * (q + g));
       ctx.fill();
       ctx.fillStyle = ink;
       ctx.beginPath();
       ctx.arc(X + dx, Y - dy, r, 0, 2 * Math.PI);
       ctx.fill();
+      ctx.fillRect(X + ux - q, Y + uy - q, 2 * q, 2 * q);
 
       // The name, when the frame is large enough or under the pointer.
-      if (on || Math.abs(dx) + Math.abs(dy) > 30 * dpr){
+      if (on || Math.min(Math.hypot(dx, dy), Math.hypot(ux, uy)) > 22 * dpr){
         var label = "T" + (i + 1);
         var lx = X + (dx + ux) * 0.5, ly = Y + (uy - dy) * 0.5;
         ctx.font = "italic " + ((on ? 16 : 13) * dpr) + "px Georgia, 'Times New Roman', serif";
@@ -973,10 +1005,9 @@ var similar = {
         if (run.flags !== null && run.flags[q - run.off] === 1) { continue; }
         if (run.tones && run.tones[q] !== run.tone) { continue; }
         if (run.tags && run.tags[q] !== run.tag) { continue; }
-        var j = q * 4;
-        var dx = sq[j] * s, dy = sq[j + 1] * s;
-        var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
-        var ux = run.flip[q] ? dy : -dy, uy = run.flip[q] ? dx : -dx;
+        var j = q * 6;
+        var dx = sq[j] * s, dy = sq[j + 2] * s, ux = sq[j + 1] * s, uy = -sq[j + 3] * s;
+        var X = sq[j + 4] * s + ox, Y = oy - sq[j + 5] * s;
 
         if (shape.dot){
           var DX = X + shape.full.x[0] * dx + shape.full.y[0] * ux;
@@ -986,11 +1017,11 @@ var similar = {
           continue;
         }
         var cx = X + (dx + ux) * 0.5, cy = Y + (uy - dy) * 0.5;
-        var r = (Math.abs(dx) + Math.abs(dy)) * 0.7072;
+        var r = 0.5 * Math.sqrt(dx * dx + dy * dy + ux * ux + uy * uy + 2 * Math.abs(dx * ux - dy * uy));
         if (cx + r < 0 || cx - r > w || cy + r < 0 || cy - r > h) { continue; }
 
         var outline = r < DETAIL ? shape.coarse : shape.full, n = outline.x.length;
-        var back = fill && run.flip[q] === 1;
+        var back = fill && sq[j] * sq[j + 3] < sq[j + 1] * sq[j + 2];
         var path = [];
         for (var m = 0; m < n; m++){
           var k = back ? n - 1 - m : m;
