@@ -111,7 +111,58 @@ var last_library_shape = "square";
 
 var last_geometry_key = null;
 
+// ---- Smooth dragging ----
+//
+// While a slider, a frame or a colour is being dragged, a large figure is drawn
+// with fewer generations, so that it follows the pointer; the whole figure is
+// drawn as soon as the dragging stops. How many generations fit is worked out
+// from how long the last full drawing took, so it suits any computer or phone.
+
+var PREVIEW_MS = 25;     // time a drawing may take while dragging
+var SETTLE_MS = 200;     // pause after which the whole figure is drawn
+var interacting_until = 0;
+var settle_timer = null;
+var cost_per_copy = 0;   // ms per copy in the last drawing (0: not measured yet)
+var previewing = false;  // the figure on screen is the lighter version
+var drag_repetition = null;  // generations chosen for the current drag
+var last_ms = 0;             // time the last drawing took
+var last_rebuilt = false;    // ... and whether it recalculated the figure
+
+var markInteraction = function(){
+  interacting_until = performance.now() + SETTLE_MS;
+  clearTimeout(settle_timer);
+  settle_timer = setTimeout(scheduleBuild, SETTLE_MS + 10);
+};
+
+// Generations to draw: all of them, or fewer while dragging if all would be too slow.
+// Once chosen for a drag, the number only changes when a frame is clearly too slow
+// or clearly fast, so the drawing does not flicker between two levels.
+var previewRepetition = function(repetition){
+  if (performance.now() >= interacting_until || cost_per_copy <= 0){
+    drag_repetition = null;
+    return repetition;
+  }
+  if (drag_repetition === null){
+    var budget = PREVIEW_MS / cost_per_copy;   // copies that can be drawn in time
+    var r = repetition;
+    if (similar.number_squares(repetition) > budget){
+      if (similar.iteration.length === 1){
+        r = Math.max(1, Math.min(repetition, Math.floor(budget) - 1));
+      } else {
+        while (r > 1 && similar.number_squares(r) > budget) { r--; }
+      }
+    }
+    drag_repetition = r;
+  } else if (last_ms > PREVIEW_MS * 1.6 && drag_repetition > 1){
+    drag_repetition--;
+  } else if (last_rebuilt && last_ms < PREVIEW_MS * 0.35 && drag_repetition < repetition){
+    drag_repetition++;
+  }
+  return Math.min(drag_repetition, repetition);
+};
+
 var build = function(){
+  var started = performance.now();
   similar.only_last    = byId("only_last").checked;
   similar.colored      = byId("colored").checked;
   similar.show_handles = byId("show_handles").checked;
@@ -147,20 +198,28 @@ var build = function(){
     byId("limit_warning").textContent = "";
   }
   setPair(row, repetition);
-  similar.repetition = repetition;
+  similar.repetition = previewRepetition(repetition);
+  previewing = similar.repetition < repetition;
 
   // Recompute the geometry only if something that affects it changed;
   // toggling a display option, zooming or panning just repaints.
   var key = JSON.stringify([similar.repetition, similar.iteration]);
-  if (key !== last_geometry_key){
+  last_rebuilt = key !== last_geometry_key;
+  if (last_rebuilt){
     similar.build();
     last_geometry_key = key;
   }
   similar.compute_bounds();
   var size = canvasSize();
   similar.paint(size.w, size.h);
+  // Measured on every drawing: large copies cost more than small ones, so the
+  // lighter version corrects its own estimate from one frame to the next.
+  last_ms = performance.now() - started;
+  cost_per_copy = last_ms / Math.max(1, similar.total + similar.extra_count);
+  if (!previewing){
+    updatePointCount();   // the count is of the whole figure, not of the lighter one
+  }
   updateZoom();
-  updatePointCount();
   updatePresetList();
   scheduleSaveHash();
 };
@@ -750,6 +809,7 @@ var colourEvents = function(){
   COLOUR_FIELDS.forEach(function(id){
     byId(id).addEventListener("input", function(){
       select.value = "custom";
+      markInteraction();
       applyColours();
     });
   });
@@ -969,6 +1029,7 @@ var panelEvents = function(){
     if (!row) { return; }
     if (target.classList.contains("slider")){
       row.querySelector(".number_slide").value = target.value;
+      markInteraction();
     } else if (target.classList.contains("number_slide")){
       var slider = row.querySelector(".slider");
       if (slider) { slider.value = target.value; }
@@ -1203,6 +1264,7 @@ var figureEvents = function(){
       drag.x = e.clientX;
       drag.y = e.clientY;
     } else {
+      markInteraction();
       var d = similar.to_drawing(p.x, p.y);
       // Enough decimals to follow the pointer pixel by pixel at this zoom.
       var decimals = Math.max(2, Math.ceil(Math.log(similar.screen_scale()) / Math.LN10));
