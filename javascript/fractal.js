@@ -946,19 +946,45 @@ var similar = {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // The round dot (turn and resize) and the square one (stretch and
-      // slant), each with a pale ring.
-      var r = (on ? 6 : 4) * dpr, q = (on ? 5 : 3.5) * dpr, g = 1.5 * dpr;
+      // The solid round dot (turn and resize) and the hollow square one
+      // (stretch and slant), each with a pale ring.
+      var r = (on ? 6 : 4) * dpr, q = (on ? 5 : 4) * dpr, g = 1.5 * dpr;
+      var rx = X + dx, ry = Y - dy, sx = X + ux, sy = Y + uy;
       ctx.fillStyle = PAPER;
       ctx.beginPath();
-      ctx.arc(X + dx, Y - dy, r + g, 0, 2 * Math.PI);
-      ctx.rect(X + ux - q - g, Y + uy - q - g, 2 * (q + g), 2 * (q + g));
+      ctx.arc(rx, ry, r + g, 0, 2 * Math.PI);
+      ctx.rect(sx - q - g, sy - q - g, 2 * (q + g), 2 * (q + g));
       ctx.fill();
       ctx.fillStyle = ink;
       ctx.beginPath();
-      ctx.arc(X + dx, Y - dy, r, 0, 2 * Math.PI);
+      ctx.arc(rx, ry, r, 0, 2 * Math.PI);
       ctx.fill();
-      ctx.fillRect(X + ux - q, Y + uy - q, 2 * q, 2 * q);
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = (on ? 2.5 : 2) * dpr;
+      ctx.strokeRect(sx - q + ctx.lineWidth / 2, sy - q + ctx.lineWidth / 2,
+                     2 * q - ctx.lineWidth, 2 * q - ctx.lineWidth);
+
+      // On the highlighted frame, say what each dot does, just outside it.
+      if (on){
+        var mx = X + (dx + ux) * 0.5, my = Y + (uy - dy) * 0.5;
+        ctx.font = "italic " + (12 * dpr) + "px Georgia, 'Times New Roman', serif";
+        ctx.lineWidth = 4 * dpr;
+        var note = function(text, px, py){
+          var vx = px - mx, vy = py - my, len = Math.hypot(vx, vy);
+          if (len < 1e-9) { vx = 1; vy = 0; len = 1; }
+          vx /= len; vy /= len;
+          var gap = 14 * dpr;
+          ctx.textAlign = vx > 0.3 ? "left" : (vx < -0.3 ? "right" : "center");
+          var tx = px + vx * gap, ty = py + vy * gap;
+          ctx.strokeStyle = PAPER;
+          ctx.strokeText(text, tx, ty);
+          ctx.fillStyle = INK;
+          ctx.fillText(text, tx, ty);
+        };
+        note("turn, resize", rx, ry);
+        note("stretch, slant", sx, sy);
+        ctx.textAlign = "center";
+      }
 
       // The name, when the frame is large enough or under the pointer.
       if (on || Math.min(Math.hypot(dx, dy), Math.hypot(ux, uy)) > 22 * dpr){

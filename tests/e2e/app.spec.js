@@ -185,6 +185,12 @@ test("dragging a frame's square dot stretches and slants it", async ({ page }) =
     const r = document.getElementById("similar_canvas").getBoundingClientRect();
     return similar.handle_at(x - r.left - 1, y - r.top - 1);
   }, [side.x, side.y])).toEqual({ index: 1, part: "side" });
+  // Hovering a dot says what it does.
+  await page.mouse.move(side.x, side.y);
+  await expect(page.locator("#similar_canvas")).toHaveAttribute("title", "Square dot: drag to stretch and slant T2");
+  const round = await screenPoint(page, 0.5 + 0.5, 1.5 - 0.5);
+  await page.mouse.move(round.x, round.y);
+  await expect(page.locator("#similar_canvas")).toHaveAttribute("title", "Round dot: drag to turn and resize T2");
 
   await drag([1, 2], [1.5, 2.5]);       // twice as far along the same direction: twice as tall
   let t2 = (await transforms(page))[1];

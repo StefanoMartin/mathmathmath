@@ -88,6 +88,12 @@ var figureEvents = function(){
       if (e.pointerType === "mouse"){
         var hit = similar.handle_at(p.x, p.y);
         canvas.style.cursor = hit ? (hit.part === "move" ? "move" : "crosshair") : "";
+        // The tooltip says what dragging here does.
+        var name = hit ? "T" + (hit.index + 1) : "";
+        canvas.title = !hit ? "" :
+          hit.part === "corner" ? "Round dot: drag to turn and resize " + name :
+          hit.part === "side" ? "Square dot: drag to stretch and slant " + name :
+          "Drag to move " + name;
         setHover(hit ? hit.index : -1);
       }
       return;
