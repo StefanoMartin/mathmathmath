@@ -3,29 +3,30 @@
 
 // Classic figures. Each transform is [x, y, rotation, scale] or, when it is
 // mirrored, [x, y, rotation, scale, 1]. "last" shows the last generation only,
-// which is how the curves are usually drawn.
+// which is how the curves are usually drawn. Scales have four decimals
+// (0.7071 for 1/\u221a2, 0.3333 for 1/3) so the dimension shown is the textbook one.
 var PRESETS = [
   { name: "Pythagoras tree", shape: "square", repeat: 10, last: false,
-    t: [[0, 1, 45, 0.707], [0.5, 1.5, 315, 0.707]] },
+    t: [[0, 1, 45, 0.7071], [0.5, 1.5, 315, 0.7071]] },
   { name: "Leaning tree", shape: "square", repeat: 12, last: false,
-    t: [[0, 1, 30, 0.866], [0.75, 1.433, 300, 0.5]] },
+    t: [[0, 1, 30, 0.8660], [0.75, 1.433, 300, 0.5]] },
   { name: "L\u00e9vy C curve", shape: "line", repeat: 12, last: true,
-    t: [[0, 0, 45, 0.707], [0.5, 0.5, 315, 0.707]] },
+    t: [[0, 0, 45, 0.7071], [0.5, 0.5, 315, 0.7071]] },
   { name: "Dragon curve", shape: "line", repeat: 12, last: true,
-    t: [[0, 0, 45, 0.707], [1, 0, 135, 0.707]] },
+    t: [[0, 0, 45, 0.7071], [1, 0, 135, 0.7071]] },
   { name: "Koch curve", shape: "line", repeat: 5, last: true,
-    t: [[0, 0, 0, 0.333], [0.333, 0, 60, 0.333], [0.5, 0.289, 300, 0.333], [0.667, 0, 0, 0.333]] },
+    t: [[0, 0, 0, 0.3333], [0.3333, 0, 60, 0.3333], [0.5, 0.2887, 300, 0.3333], [0.6667, 0, 0, 0.3333]] },
   { name: "Sierpinski triangle", shape: "triangle", repeat: 7, last: false,
     t: [[0, 0, 0, 0.5], [0.5, 0, 0, 0.5], [0.25, 0.433, 0, 0.5]] },
   { name: "Sierpinski arrowhead", shape: "line", repeat: 7, last: true,
     t: [[0, 0, 60, 0.5, 1], [0.25, 0.433, 0, 0.5], [0.75, 0.433, 300, 0.5, 1]] },
   { name: "Tree of hearts", shape: "heart", repeat: 9, last: false, filled: true,
-    t: [[0, 1, 45, 0.707], [0.5, 1.5, 315, 0.707]] },
+    t: [[0, 1, 45, 0.7071], [0.5, 1.5, 315, 0.7071]] },
   { name: "Heart spiral", shape: "heart", repeat: 40, last: false, filled: true,
     t: [[0.15, 0.25, 20, 0.9]] },
   { name: "Vicsek cross", shape: "square", repeat: 5, last: false,
-    t: [[0.333, 0, 0, 0.333], [0, 0.333, 0, 0.333], [0.333, 0.333, 0, 0.333],
-        [0.667, 0.333, 0, 0.333], [0.333, 0.667, 0, 0.333]] }
+    t: [[0.3333, 0, 0, 0.3333], [0, 0.3333, 0, 0.3333], [0.3333, 0.3333, 0, 0.3333],
+        [0.6667, 0.3333, 0, 0.3333], [0.3333, 0.6667, 0, 0.3333]] }
 ];
 
 // Most points in a custom shape.
@@ -68,6 +69,26 @@ var compactTransform = function(t){
 var validTransform = function(t){
   return Array.isArray(t) && (t.length === 4 || t.length === 5) &&
     t.every(function(v){ return typeof v === "number" && isFinite(v); });
+};
+
+// How copies are coloured: "generation", "transform" or "ink". Older links and
+// favourites have true (by generation) or false (one ink).
+var COLOUR_MODES = ["generation", "transform", "ink"];
+var colourMode = function(value){
+  if (value === true) { return "generation"; }
+  if (value === false) { return "ink"; }
+  return COLOUR_MODES.indexOf(value) >= 0 ? value : "generation";
+};
+
+// Opacity of the copies, from 0.1 to 1 in steps of 0.05; anything else gives null.
+var validOpacity = function(value){
+  var v = Number(value);
+  if (!isFinite(v)) { return null; }
+  return Math.round(Math.min(1, Math.max(0.1, v)) * 20) / 20;
+};
+
+var readOpacity = function(){
+  return validOpacity(Number(byId("opacity").value) / 100) || 1;
 };
 
 var validShape = function(name){

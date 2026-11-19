@@ -325,6 +325,20 @@ table.colours {
   cursor: pointer;
 }
 
+/* Opacity: the slider takes the room its value leaves. */
+#opacity {
+  flex: 1;
+  min-width: 0;
+  margin: 0 6px 0 0;
+  accent-color: #3b3a36;
+}
+
+#opacity_value {
+  width: 40px;
+  text-align: right;
+  font: 13px "Courier New", Courier, monospace;
+}
+
 /* ---- Zoom ---- */
 
 .zoom {
@@ -379,6 +393,23 @@ table.colours {
 }
 
 /* Number of points calculated, in the lower-left corner of the figure. */
+/* The fractal dimension, in the lower-right corner of the figure. */
+#dimension {
+  position: absolute;
+  right: 37px;
+  bottom: 37px;
+  padding: 1px 6px;
+  font-size: 13px;
+  font-style: italic;
+  color: #4a463c;
+  background: #fbf9f3;
+  border: 1px solid #8c8676;
+}
+
+#dimension:empty {
+  display: none;
+}
+
 #point_count {
   position: absolute;
   left: 37px;
@@ -498,6 +529,14 @@ button, a, select, label {
   #point_count {
     left: 15px;
     bottom: 15px;
+    font-size: 12px;
+  }
+
+  /* On a phone the two notes would meet: the dimension goes above the count. */
+  #dimension {
+    left: 15px;
+    right: auto;
+    bottom: 42px;
     font-size: 12px;
   }
 

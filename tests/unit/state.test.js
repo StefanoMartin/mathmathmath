@@ -121,3 +121,43 @@ test("the zoom readout stays short", () => {
                  [1e12, "×10¹²"]];
   for (const [z, text] of cases) { assert.equal(app.formatZoom(z), text, String(z)); }
 });
+
+test("colouring and opacity travel with links; older links still read", () => {
+  for (const [mode, code] of [["ink", "0"], ["generation", "1"], ["transform", "2"]]){
+    const link = app.encodeState({ ...BASE, colour: mode, opacity: 0.4 });
+    assert.match(link, new RegExp("&c=" + code + "&o=40&"));
+    const back = app.decodeState("#" + link);
+    assert.equal(back.colour, mode);
+    assert.equal(back.opacity, 0.4);
+  }
+  assert.doesNotMatch(app.encodeState({ ...BASE, opacity: 1 }), /&o=/, "100% is not written");
+  assert.equal(app.decodeState("#c=1&t=0,0,0,0.5").colour, "generation", "older links: c=1 is by generation");
+  assert.equal(app.decodeState("#c=0&t=0,0,0,0.5").colour, "ink");
+  assert.equal(app.decodeState("#t=0,0,0,0.5").opacity, 1);
+  assert.equal(app.decodeState("#o=3&t=0,0,0,0.5").opacity, 0.1, "clamped to 10%");
+  assert.equal(app.decodeState("#o=500&t=0,0,0,0.5").opacity, 1);
+  assert.equal(app.decodeState("#o=abc&t=0,0,0,0.5").opacity, 1);
+});
+
+test("colouring and opacity values are checked", () => {
+  assert.equal(app.colourMode(true), "generation");
+  assert.equal(app.colourMode(false), "ink");
+  assert.equal(app.colourMode("transform"), "transform");
+  assert.equal(app.colourMode("rainbow"), "generation");
+  assert.equal(app.validOpacity(0.43), 0.45, "steps of 5%");
+  assert.equal(app.validOpacity("x"), null);
+});
+
+test("favourites keep colouring and opacity", () => {
+  const [item, old, odd] = app.cleanFavourites([
+    { name: "A", repeat: 5, t: [[0, 0, 0, 0.5]], colouring: "transform", opacity: 0.35 },
+    { name: "B", repeat: 5, t: [[0, 0, 0, 0.5]] },
+    { name: "C", repeat: 5, t: [[0, 0, 0, 0.5]], colouring: "neon", opacity: "lots" }
+  ]);
+  assert.equal(item.colouring, "transform");
+  assert.equal(item.opacity, 0.35);
+  assert.equal(old.colouring, undefined, "older favourites keep the viewer's setting");
+  assert.equal(old.opacity, undefined);
+  assert.equal(odd.colouring, "generation");
+  assert.equal(odd.opacity, undefined);
+});

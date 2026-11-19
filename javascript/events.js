@@ -6,7 +6,9 @@
 var panelEvents = function(){
   // Holding a slider keeps the lighter drawing until it is let go (see drawing.js).
   document.addEventListener("pointerdown", function(e){
-    if (e.target.classList && e.target.classList.contains("slider")) { holdInteraction(true); }
+    if (e.target.classList && (e.target.classList.contains("slider") || e.target.id === "opacity")){
+      holdInteraction(true);
+    }
   });
   ["pointerup", "pointercancel"].forEach(function(type){
     window.addEventListener(type, function(){ holdInteraction(false); });
@@ -48,7 +50,11 @@ var panelEvents = function(){
   byId("addButton").addEventListener("click", function(){ appendBox(); scheduleBuild(); });
   byId("randomButton").addEventListener("click", randomBuild);
   byId("only_last").addEventListener("change", scheduleBuild);
-  byId("colored").addEventListener("change", scheduleBuild);
+  byId("colour_mode").addEventListener("change", scheduleBuild);
+  byId("opacity").addEventListener("input", function(){
+    markInteraction();
+    scheduleBuild();
+  });
   byId("show_handles").addEventListener("change", scheduleBuild);
   byId("toggleHandles").addEventListener("click", toggleHandles);
   byId("figureFit").addEventListener("click", function(){ similar.reset_view(); scheduleBuild(); });

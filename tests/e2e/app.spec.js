@@ -11,7 +11,8 @@ test("starts on the Pythagoras tree preset, with the link filled in", async ({ p
   expect(await presetShown(page)).toBe("Pythagoras tree");
   await expect(page.locator("#repetition")).toHaveValue("10");
   await expect(page.locator("#point_count")).toHaveText("8,188 points calculated");
-  await expect(page).toHaveURL(/#r=10&.*t=0,1,45,0\.707;0\.5,1\.5,315,0\.707/);
+  await expect(page).toHaveURL(/#r=10&.*t=0,1,45,0\.7071;0\.5,1\.5,315,0\.7071$/);
+  await expect(page.locator("#dimension")).toHaveText("Dimension \u2248 2.000");
   await expect(page.locator("#undoButton")).toBeDisabled();
   expect(errors).toEqual([]);
 });
@@ -247,5 +248,48 @@ test("a large figure is drawn lighter while a slider is dragged", async ({ page 
   await page.mouse.up();
   await expect.poll(() => page.evaluate(() => similar.repetition)).toBe(16);
   await expect(page.locator("#point_count")).toHaveText("524,284 points calculated");
+  expect(errors).toEqual([]);
+});
+
+test("colouring by transform: one colour per transform, frames in the same colours", async ({ page }) => {
+  const errors = await open(page, PYTHAGORAS);
+  await page.selectOption("#colour_mode", "transform");
+  await expect(page).toHaveURL(/&c=2&/);
+  const colours = await page.evaluate(() => [...new Set(similar.runs().map((r) => r.colour))]);
+  const expected = await page.evaluate(() => [INK, transformColour(0, 2), transformColour(1, 2)]);
+  expect(colours.sort()).toEqual(expected.sort());
+  await page.selectOption("#colour_mode", "ink");
+  expect(await page.evaluate(() => [...new Set(similar.runs().map((r) => r.colour))])).toEqual(await page.evaluate(() => [INK]));
+  expect(errors).toEqual([]);
+});
+
+test("the fractal dimension is shown, with a note when it needs one", async ({ page }) => {
+  const errors = await open(page);
+  await page.selectOption("#preset", { label: "Sierpinski triangle" });
+  await expect(page.locator("#dimension")).toHaveText("Dimension \u2248 1.585");
+  await page.selectOption("#preset", { label: "Koch curve" });
+  await expect(page.locator("#dimension")).toHaveText("Dimension \u2248 1.262");
+  await page.click(".box_iteration:nth-child(1) .removeButton");
+  await page.click(".box_iteration:nth-child(1) .removeButton");
+  await page.click(".box_iteration:nth-child(1) .removeButton");
+  await expect(page.locator("#dimension")).toHaveText("Dimension 0: one transform shrinks all to a point");
+  expect(errors).toEqual([]);
+});
+
+test("opacity: the slider, the link and favourites", async ({ page }) => {
+  const errors = await open(page, PYTHAGORAS);
+  await page.locator("#opacity").fill("40");
+  await expect(page.locator("#opacity_value")).toHaveText("40%");
+  await expect(page).toHaveURL(/&o=40&/);
+  expect(await page.evaluate(() => similar.opacity)).toBe(0.4);
+
+  await page.selectOption("#colour_mode", "transform");
+  await page.fill("#favourite_name", "Glass tree");
+  await page.click("#saveFavourite");
+  await page.locator("#opacity").fill("100");
+  await page.selectOption("#colour_mode", "generation");
+  await page.selectOption("#preset", { label: "Glass tree" });
+  await expect(page.locator("#opacity_value")).toHaveText("40%");
+  await expect(page.locator("#colour_mode")).toHaveValue("transform");
   expect(errors).toEqual([]);
 });

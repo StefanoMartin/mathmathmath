@@ -7,7 +7,8 @@ var readState = function(){
   return {
     repeat: Math.max(0, Math.floor(readNumber(byId("repetition"), 0))),
     last: byId("only_last").checked,
-    colour: byId("colored").checked,
+    colour: colourMode(byId("colour_mode").value),
+    opacity: readOpacity(),
     shape: validShape(byId("shape").value),
     custom: validShape(byId("shape").value) === "custom" ? validCustom(custom_shape) : undefined,
     filled: byId("filled").checked,
@@ -23,7 +24,10 @@ var applyState = function(state, keep_view){
   state.transforms.forEach(function(t){ appendBox(t); });
   setPair(byId("repetition").closest(".row"), state.repeat);
   if (state.last !== undefined)   { byId("only_last").checked = state.last; }
-  if (state.colour !== undefined) { byId("colored").checked = state.colour; }
+  if (state.colour !== undefined) { byId("colour_mode").value = colourMode(state.colour); }
+  if (state.opacity !== undefined){
+    byId("opacity").value = Math.round((validOpacity(state.opacity) || 1) * 100);
+  }
   if (state.shape !== undefined)  { byId("shape").value = validShape(state.shape); }
   if (state.custom){
     custom_shape = validCustom(state.custom);
@@ -34,17 +38,22 @@ var applyState = function(state, keep_view){
   if (!keep_view) { similar.reset_view(); }
 };
 
-// r = repeat, l = last generation only, c = colour, s = shape (when not a square),
+// r = repeat, l = last generation only, c = colouring, o = opacity in % (when below 100),
+// s = shape (when not a square),
 // p = points of a custom shape (x,y;x,y...), k = 0 for an open custom shape,
 // f = 1 for filled shapes, cs = colour scheme (its number, or "custom" with
 // cc = first,middle,last,paper colours), lw = line width,
 // t = x,y,rotation,scale;... with ",1" added to a mirrored transform.
+// c = colouring in a link: 0 one ink, 1 by generation (as in older links), 2 by transform.
+var COLOUR_CODES = { ink: 0, generation: 1, transform: 2 };
+
 var encodeState = function(state){
   var custom = state.shape === "custom" && state.custom ? state.custom : null;
   var colours = state.colours;
   return "r=" + state.repeat +
     "&l=" + (state.last ? 1 : 0) +
-    "&c=" + (state.colour ? 1 : 0) +
+    "&c=" + COLOUR_CODES[colourMode(state.colour)] +
+    (state.opacity !== undefined && state.opacity < 1 ? "&o=" + Math.round(state.opacity * 100) : "") +
     (state.shape && state.shape !== "square" ? "&s=" + state.shape : "") +
     (custom ? "&p=" + custom.points.map(function(p){ return p.join(","); }).join(";") : "") +
     (custom && !custom.closed ? "&k=0" : "") +
@@ -59,7 +68,7 @@ var decodeState = function(hash){
   var text = hash.replace(/^#/, "");
   try { text = decodeURIComponent(text); } catch (e) { return null; }
 
-  var state = { repeat: 7, last: false, colour: false, shape: "square", filled: false, transforms: [] };
+  var state = { repeat: 7, last: false, colour: "ink", opacity: 1, shape: "square", filled: false, transforms: [] };
   var custom = { points: [], closed: true };
   var scheme = null, scheme_colours = null, lines = null;
   var has_transforms = false;
@@ -73,7 +82,9 @@ var decodeState = function(hash){
     } else if (key === "l"){
       state.last = value === "1";
     } else if (key === "c"){
-      state.colour = value === "1";
+      state.colour = value === "2" ? "transform" : (value === "1" ? "generation" : "ink");
+    } else if (key === "o"){
+      state.opacity = validOpacity(parseInt(value, 10) / 100) || 1;
     } else if (key === "s"){
       state.shape = validShape(value);
     } else if (key === "p"){

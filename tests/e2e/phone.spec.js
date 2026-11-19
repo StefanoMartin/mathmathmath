@@ -82,3 +82,12 @@ test("one finger on empty paper in the fitted view changes nothing", async ({ pa
   expect(await page.evaluate(() => similar.view.fit)).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test("the dimension and the point count do not cover each other", async ({ page }) => {
+  const errors = await open(page);
+  const a = await page.locator("#dimension").boundingBox();
+  const b = await page.locator("#point_count").boundingBox();
+  const apart = a.y + a.height <= b.y || b.y + b.height <= a.y || a.x + a.width <= b.x || b.x + b.width <= a.x;
+  expect(apart).toBe(true);
+  expect(errors).toEqual([]);
+});

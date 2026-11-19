@@ -22,9 +22,12 @@ give the Pythagoras tree; three on a triangle give the Sierpinski triangle.
   phone) to zoom in or out, and drag to move around.
   Zooming in calculates finer generations for the part in view, so the detail
   keeps going (up to ×10¹², a million million).
-- **Display** – show only the last generation, fill closed shapes, colour each
-  generation, pick a colour scheme or your own colours, and set the line
-  thickness.
+- **Display** – show only the last generation, fill closed shapes, colour the
+  copies by generation, by the transform that made them, or in one ink, pick a
+  colour scheme or your own colours, set the line thickness, and make the copies
+  see-through so that overlaps show deeper.
+- **Fractal dimension** – shown on the figure, worked out from the scales of the
+  transforms (exact when the copies do not overlap).
 - **Presets** – Pythagoras tree, Lévy C curve, dragon curve, Koch curve,
   Sierpinski triangle and arrowhead, Vicsek cross, a tree of hearts and more.
 - **Favourites** – save the figures you like (with their colours), find them

@@ -78,7 +78,9 @@ var previewRepetition = function(repetition){
 var build = function(){
   var started = performance.now();
   similar.only_last    = byId("only_last").checked;
-  similar.colored      = byId("colored").checked;
+  similar.colour_mode  = colourMode(byId("colour_mode").value);
+  similar.opacity      = readOpacity();
+  byId("opacity_value").textContent = Math.round(similar.opacity * 100) + "%";
   similar.show_handles = byId("show_handles").checked;
   byId("toggleHandles").textContent = similar.show_handles ? "Hide transforms" : "Show transforms";
   similar.filled       = byId("filled").checked;
@@ -184,4 +186,20 @@ var updateZoom = function(){
 var updatePointCount = function(){
   var points = (similar.total + similar.extra_count) * similar.shape_points();
   byId("point_count").textContent = formatCount(points) + " points calculated";
+  updateDimension();
+};
+
+// The fractal dimension of the figure, with a word where it needs one.
+var updateDimension = function(){
+  var D = similar.dimension();
+  var text = "";
+  if (D === Infinity){
+    text = "No fractal dimension: a scale is 1 or more";
+  } else if (D === 0){
+    text = "Dimension 0: one transform shrinks all to a point";
+  } else if (D !== null){
+    text = "Dimension \u2248 " + D.toFixed(3);
+    if (D > 2) { text += " (over 2: the copies overlap)"; }
+  }
+  byId("dimension").textContent = text;
 };

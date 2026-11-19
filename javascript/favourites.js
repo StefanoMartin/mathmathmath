@@ -7,9 +7,10 @@ var FAVOURITES_KEY = "similar-fractal.favourites";
 
 // Keep only the well-formed entries of a list of favourites: it may come from
 // a file, or from a store that was edited by hand.
-// An entry is {name, repeat, shape, custom, last, filled, colours, t: [[x, y, rotation, scale(, 1)], ...]};
-// "custom" is only there for a custom shape; "last", "filled" and "colours" are
-// missing from favourites saved before they existed.
+// An entry is {name, repeat, shape, custom, last, filled, colours, colouring, opacity,
+// t: [[x, y, rotation, scale(, 1)], ...]};
+// "custom" is only there for a custom shape; "last", "filled", "colours",
+// "colouring" and "opacity" are missing from favourites saved before they existed.
 var cleanFavourites = function(list){
   if (!Array.isArray(list)) { return []; }
   var good = [];
@@ -23,6 +24,8 @@ var cleanFavourites = function(list){
       custom: item.shape === "custom" ? validCustom(item.custom) || { points: [], closed: true } : undefined,
       last: typeof item.last === "boolean" ? item.last : undefined,
       filled: typeof item.filled === "boolean" ? item.filled : undefined,
+      colouring: item.colouring !== undefined ? colourMode(item.colouring) : undefined,
+      opacity: item.opacity !== undefined ? validOpacity(item.opacity) || undefined : undefined,
       colours: item.colours ? validColourState(item.colours) || undefined : undefined,
       t: item.t.filter(validTransform).slice(0, MAX_TRANSFORMS).map(compactTransform)
     });
@@ -62,7 +65,7 @@ var current_pick = null;
 var figureKey = function(with_colours){
   var state = readState();
   return JSON.stringify([state.repeat, state.shape, state.custom || null, state.last, state.filled,
-                         with_colours ? state.colours : null,
+                         with_colours ? [state.colours, state.colour, state.opacity] : null,
                          state.transforms.map(compactTransform)]);
 };
 
@@ -162,6 +165,7 @@ var saveFavourite = function(){
   putFavourite(list, {
     name: name, repeat: state.repeat, shape: state.shape, custom: state.custom,
     last: state.last, filled: state.filled, colours: state.colours,
+    colouring: state.colour, opacity: state.opacity,
     t: state.transforms.map(compactTransform)
   });
 
@@ -179,7 +183,8 @@ var showFavourite = function(index){
   var item = loadFavourites()[index];
   if (!item) { return; }
   applyState({ repeat: item.repeat, shape: item.shape, custom: item.custom,
-                last: item.last, filled: item.filled, colours: item.colours, transforms: item.t });
+                last: item.last, filled: item.filled, colours: item.colours,
+                colour: item.colouring, opacity: item.opacity, transforms: item.t });
   pickEntry("f", index, item.name);
   scheduleBuild();
 };

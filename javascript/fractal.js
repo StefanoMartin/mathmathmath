@@ -13,6 +13,8 @@ var MAX_ZOOM = 1e12;
 var MIN_ZOOM = 0.05;
 // Most extra copies calculated for a zoomed-in view.
 var MAX_EXTRA = 400000;
+// Tag of the starting shape (made by no transform), in the transform tags.
+var SEED_TAG = 255;
 // Number of ink tones used for those extra copies (they are coloured by size).
 var TONES = 32;
 // Empty margin around the drawing when fitted, in CSS pixels.
@@ -135,7 +137,8 @@ var similar = {
   repetition: 10,
   iteration: [],
   only_last: false,
-  colored: true,
+  colour_mode: "generation",   // colour by "generation", by "transform", or one "ink"
+  opacity: 1,              // 0.1 .. 1; below 1 overlapping copies show deeper
   show_handles: true,
   hover_index: -1,         // transform whose frame is highlighted, or -1
   filled: false,           // fill closed shapes instead of outlining them
@@ -144,6 +147,7 @@ var similar = {
 
   squares: new Float64Array(4),
   flips: new Uint8Array(1),
+  tags: new Uint8Array(1), // for each copy, the transform that made it (outermost), or SEED_TAG
   level_start: [0, 1],
   total: 1,
   geometry_version: 0,
@@ -248,12 +252,14 @@ var similar = {
     if (this.squares.length < total * 4){
       this.squares = new Float64Array(total * 4);
       this.flips = new Uint8Array(total);
+      this.tags = new Uint8Array(total);
     }
-    var sq = this.squares, fl = this.flips;
+    var sq = this.squares, fl = this.flips, tg = this.tags;
 
     // Seed: the identity map.
     sq[0] = 1; sq[1] = 0; sq[2] = 0; sq[3] = 0;
     fl[0] = 0;
+    tg[0] = SEED_TAG;
 
     var level_start = [0, 1];
     var prev_start = 0, prev_end = 1, out = 1;
@@ -270,6 +276,7 @@ var similar = {
           sq[o + 2] = tzr * wr - tzi * wi + twr;
           sq[o + 3] = tzr * wi + tzi * wr + twi;
           fl[out] = fl[i] ^ tf;
+          tg[out] = t;              // T(t) is applied last, outside everything else
           out++;
         }
       }
@@ -289,48 +296,98 @@ var similar = {
     return [this.only_last ? last : 0, last];
   },
 
-  // What to draw: a list of runs {colour, buf, flip, from, to, flags, off}.
-  // A run with flags skips the copies that were expanded (flags[i - off] = 1),
-  // which leaves only the finest ones: the "last generation" of a refined view.
+  // What to draw: a list of runs, drawn in order, each in one colour:
+  //   {colour, buf, flip, from, to, flags, off, tones, tone, tags, tag, order}
+  // A run covers copies from..to of buf (or order[from..to] if it has an order).
+  // It skips the copies that were expanded (flags[i - off] = 1), which leaves
+  // only the finest ones: the "last generation" of a refined view; and, when
+  // given, copies of another ink tone (tones) or of another transform (tags).
   runs: function(){
     var levels = this.visible_levels();
     var first = levels[0], last = levels[1];
     var ls = this.level_start;
     var self = this;
-
-    // Colours slide with the zoom, so a zoomed-in branch is inked like the whole figure.
-    var colour = function(level){
-      if (!self.colored) { return INK; }
-      return generationColour((level - self.shift) / Math.max(last, 1));
-    };
-
-    var runs = [];
+    var n = this.iteration.length;
+    var mode = this.colour_mode;
     var leaves_only = this.only_last && this.refined;
-    for (var level = first; level <= last; level++){
+    var runs = [];
+
+    // Generation by generation, so that the smaller copies lie on top.
+    var base = function(colour, level, tag){
       runs.push({
-        colour: colour(level), buf: this.squares, flip: this.flips,
-        from: ls[level], to: ls[level + 1],
-        flags: leaves_only ? this.base_open : null, off: ls[last]
+        colour: colour, buf: self.squares, flip: self.flips, from: ls[level], to: ls[level + 1],
+        flags: leaves_only ? self.base_open : null, off: ls[last],
+        tags: tag === undefined ? null : self.tags, tag: tag
       });
+    };
+    for (var level = first; level <= last; level++){
+      if (mode === "transform" && level > 0){
+        for (var t = 0; t < n; t++) { base(transformColour(t, n), level, t); }
+      } else if (mode === "generation"){
+        // Colours slide with the zoom, so a zoomed-in branch is inked like the whole figure.
+        base(generationColour((level - self.shift) / Math.max(last, 1)), level);
+      } else {
+        base(INK, level);   // one ink, or the starting shape (made by no transform)
+      }
     }
+
     if (this.refined && this.extra_count){
       var flags = leaves_only ? this.extra_open : null;
-      if (!this.colored){
-        runs.push({ colour: INK, buf: this.extra, flip: this.extra_flip,
-                    from: 0, to: this.extra_count, flags: flags, off: 0 });
-      } else {
-        // One pass per ink tone, lightest generation first.
+      var extra = function(colour, more){
+        var run = { colour: colour, buf: self.extra, flip: self.extra_flip,
+                    from: 0, to: self.extra_count, flags: flags, off: 0 };
+        for (var key in more) { run[key] = more[key]; }
+        runs.push(run);
+      };
+      if (mode === "ink"){
+        extra(INK, {});
+      } else if (mode === "generation"){
+        // One pass per ink tone, largest copies first.
         for (var tone = 0; tone < TONES; tone++){
-          if (!this.tone_count[tone]) { continue; }
-          runs.push({
-            colour: generationColour(tone / (TONES - 1)), buf: this.extra, flip: this.extra_flip,
-            from: 0, to: this.extra_count, flags: flags, off: 0,
-            tones: this.extra_tone, tone: tone
-          });
+          if (this.tone_count[tone]) { extra(generationColour(tone / (TONES - 1)), { tones: this.extra_tone, tone: tone }); }
+        }
+      } else {
+        // By transform, largest copies first: sort them by (size tone, transform)
+        // once, so that each colour is a single stretch of the sorted list.
+        var K = n + 1, buckets = TONES * K, count = this.extra_count;
+        var tn = this.extra_tone, tg = this.extra_tag;
+        var bucketOf = function(i){ return tn[i] * K + (tg[i] === SEED_TAG ? n : tg[i]); };
+        var starts = new Int32Array(buckets + 1), i, b;
+        for (i = 0; i < count; i++) { starts[bucketOf(i) + 1]++; }
+        for (b = 0; b < buckets; b++) { starts[b + 1] += starts[b]; }
+        var order = new Int32Array(count), fill = starts.slice(0, buckets);
+        for (i = 0; i < count; i++) { order[fill[bucketOf(i)]++] = i; }
+        for (b = 0; b < buckets; b++){
+          if (starts[b + 1] > starts[b]){
+            var which = b % K;
+            extra(which < n ? transformColour(which, n) : INK, { order: order, from: starts[b], to: starts[b + 1] });
+          }
         }
       }
     }
     return runs;
+  },
+
+  // The similarity dimension of the figure: the D for which the scales s of the
+  // transforms satisfy sum(s^D) = 1. It is the fractal dimension when the copies
+  // do not overlap. null: no transforms; Infinity: a scale is 1 or more (the
+  // copies do not shrink); 0: a single transform (everything shrinks to a point).
+  dimension: function(){
+    var scales = this.iteration.map(function(t){ return Math.sqrt(t.zr * t.zr + t.zi * t.zi); })
+      .filter(function(v){ return v > 1e-12; });
+    if (!scales.length) { return null; }
+    if (scales.some(function(v){ return v >= 1; })) { return Infinity; }
+    if (scales.length === 1) { return 0; }
+    var excess = function(D){
+      return scales.reduce(function(sum, v){ return sum + Math.pow(v, D); }, 0) - 1;
+    };
+    var lo = 0, hi = 1;
+    while (excess(hi) > 0) { lo = hi; hi *= 2; }
+    for (var k = 0; k < 80; k++){
+      var mid = (lo + hi) / 2;
+      if (excess(mid) > 0) { lo = mid; } else { hi = mid; }
+    }
+    return (lo + hi) / 2;
   },
 
   /*
@@ -397,21 +454,23 @@ var similar = {
     if (!this.extra){
       this.extra = new Float64Array(MAX_EXTRA * 4);
       this.extra_flip = new Uint8Array(MAX_EXTRA);
+      this.extra_tag = new Uint8Array(MAX_EXTRA);
       this.extra_side = new Float32Array(MAX_EXTRA);
       this.extra_open = new Uint8Array(MAX_EXTRA);
       this.extra_tone = new Uint8Array(MAX_EXTRA);
       this.queue_a = new Int32Array(MAX_EXTRA);
       this.queue_b = new Int32Array(MAX_EXTRA);
     }
-    var ex = this.extra, xf = this.extra_flip, sides = this.extra_side;
+    var ex = this.extra, xf = this.extra_flip, xt = this.extra_tag, sides = this.extra_side;
     var open = this.extra_open, tones = this.extra_tone;
     var tone_count = [];
     for (k = 0; k < TONES; k++) { tone_count.push(0); }
     var count = 0, largest = 0;
     var sink = this.queue_a, sunk = 0;   // where new copies wait, and how many
 
-    // Append the visible children of the copy (zr, zi, wr, wi, f).
-    var emit = function(zr, zi, wr, wi, f){
+    // Append the visible children of the copy (zr, zi, wr, wi, f). Children are
+    // made inside their parent, so they keep its transform tag.
+    var emit = function(zr, zi, wr, wi, f, tag){
       for (var q = 0; q < n; q++){
         var tr = T[q];
         var a = tr.zr, b = tr.zi, e = tr.wr, d = tr.wi;
@@ -428,6 +487,7 @@ var similar = {
         var o = count * 4;
         ex[o] = czr; ex[o + 1] = czi; ex[o + 2] = cwr; ex[o + 3] = cwi;
         xf[count] = cf;
+        xt[count] = tag;
         sides[count] = side;
         open[count] = 0;
         // Ink by size: the generation a copy of this side would belong to.
@@ -476,7 +536,7 @@ var similar = {
     for (i = from; i < to; i++){
       if (base_open[i - from]){
         j = i * 4;
-        emit(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i]);
+        emit(sq[j], sq[j + 1], sq[j + 2], sq[j + 3], fl[i], this.tags[i]);
       }
     }
 
@@ -505,7 +565,7 @@ var similar = {
         if (sides[i] > threshold){
           open[i] = 1;
           j = i * 4;
-          emit(ex[j], ex[j + 1], ex[j + 2], ex[j + 3], xf[i]);
+          emit(ex[j], ex[j + 1], ex[j + 2], ex[j + 3], xf[i], xt[i]);
         } else {
           sink[sunk++] = i;
         }
@@ -712,11 +772,13 @@ var similar = {
     ctx.setLineDash([]);
     this.refine();
     var runs = this.runs();
+    ctx.globalAlpha = this.opacity;
     for (var i = 0; i < runs.length; i++){
       ctx.strokeStyle = runs[i].colour;
       ctx.fillStyle = runs[i].colour;
       this.trace(ctx, runs[i], s, ox, oy, pw, ph, dpr);
     }
+    ctx.globalAlpha = 1;
 
     if (this.show_handles && !plain){
       this.paint_handles(ctx, s, ox, oy, dpr);
@@ -729,6 +791,10 @@ var similar = {
   trace: function(ctx, run, s, ox, oy, pw, ph, dpr){
     var sq = run.buf, fl = run.flip, flags = run.flags, off = run.off;
     var tones = run.tones || null, tone = run.tone;
+    var tags = run.tags || null, tag = run.tag, order = run.order || null;
+    // See-through copies are painted one by one, so that where they overlap the
+    // colour deepens (within one path, overlaps would merge into one layer).
+    var chunk = this.opacity < 1 ? 1 : STROKE_CHUNK;
     var shape = this.shape;
     if (shape.empty) { return; }
     var dot = shape.dot, half = dpr * Math.max(1, this.line_width);   // a dot is 2 line widths across
@@ -739,9 +805,11 @@ var similar = {
     var detail = DETAIL * dpr;
     var drawn = 0;
     ctx.beginPath();
-    for (var i = run.from; i < run.to; i++){
+    for (var q = run.from; q < run.to; q++){
+      var i = order !== null ? order[q] : q;
       if (flags !== null && flags[i - off] === 1) { continue; }
       if (tones !== null && tones[i] !== tone) { continue; }
+      if (tags !== null && tags[i] !== tag) { continue; }
       var j = i * 4;
       var dx = sq[j] * s, dy = sq[j + 1] * s;
       var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
@@ -780,7 +848,7 @@ var similar = {
           if (closed) { ctx.closePath(); }
         }
       }
-      if (++drawn === STROKE_CHUNK){
+      if (++drawn === chunk){
         if (fill) { ctx.fill(); } else { ctx.stroke(); }
         ctx.beginPath();
         drawn = 0;
@@ -809,6 +877,8 @@ var similar = {
     for (var o = 0; o < order.length; o++){
       i = order[o];
       var on = i === this.hover_index;
+      // Coloured by transform, each frame has the colour of the copies it makes.
+      var ink = this.colour_mode === "transform" ? transformColour(i, this.iteration.length) : HANDLE_INK;
       var t = this.iteration[i];
       var dx = t.zr * s, dy = t.zi * s;
       var ux = t.flip ? dy : -dy, uy = t.flip ? dx : -dx;
@@ -825,7 +895,7 @@ var similar = {
 
       if (on){
         ctx.globalAlpha = 0.18;
-        ctx.fillStyle = HANDLE_INK;
+        ctx.fillStyle = ink;
         frame();
         ctx.fill();
         ctx.globalAlpha = 1;
@@ -840,7 +910,7 @@ var similar = {
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      ctx.strokeStyle = HANDLE_INK;
+      ctx.strokeStyle = ink;
       ctx.lineWidth = (on ? 2.5 : 1.5) * dpr;
       ctx.setLineDash(on ? [] : [5 * dpr, 3 * dpr]);
       frame();
@@ -853,7 +923,7 @@ var similar = {
       ctx.beginPath();
       ctx.arc(X + dx, Y - dy, r + 1.5 * dpr, 0, 2 * Math.PI);
       ctx.fill();
-      ctx.fillStyle = HANDLE_INK;
+      ctx.fillStyle = ink;
       ctx.beginPath();
       ctx.arc(X + dx, Y - dy, r, 0, 2 * Math.PI);
       ctx.fill();
@@ -866,6 +936,8 @@ var similar = {
         ctx.strokeStyle = PAPER;
         ctx.lineWidth = 4 * dpr;
         ctx.strokeText(label, lx, ly);
+        // Coloured by transform, the name would vanish into copies of its own colour.
+        ctx.fillStyle = this.colour_mode === "transform" ? INK : ink;
         ctx.fillText(label, lx, ly);
       }
     }
@@ -882,12 +954,13 @@ var similar = {
     var fill = shape.dot || (this.filled && shape.closed);
     var f = function(v){ return Math.round(v * 100) / 100; };
 
+    var see_through = this.opacity < 1;
     var out = [
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h +
         '" viewBox="0 0 ' + w + " " + h + '">',
       '<rect width="100%" height="100%" fill="' + PAPER + '"/>',
-      fill ? '<g stroke="none">' : '<g fill="none" stroke-width="' + this.line_width +
-        '" stroke-linejoin="round">'
+      (fill ? '<g stroke="none"' : '<g fill="none" stroke-width="' + this.line_width + '" stroke-linejoin="round"') +
+        (see_through ? " " + (fill ? "fill" : "stroke") + '-opacity="' + this.opacity + '"' : "") + ">"
     ];
     var half = Math.max(1, this.line_width);
 
@@ -895,9 +968,11 @@ var similar = {
     var runs = shape.empty ? [] : this.runs();
     for (var i = 0; i < runs.length; i++){
       var run = runs[i], sq = run.buf, d = [];
-      for (var q = run.from; q < run.to; q++){
+      for (var p = run.from; p < run.to; p++){
+        var q = run.order ? run.order[p] : p;
         if (run.flags !== null && run.flags[q - run.off] === 1) { continue; }
         if (run.tones && run.tones[q] !== run.tone) { continue; }
+        if (run.tags && run.tags[q] !== run.tag) { continue; }
         var j = q * 4;
         var dx = sq[j] * s, dy = sq[j + 1] * s;
         var X = sq[j + 2] * s + ox, Y = oy - sq[j + 3] * s;
@@ -924,13 +999,22 @@ var similar = {
         }
         d.push("M" + path.join("L") + (shape.closed ? "z" : ""));
       }
-      if (d.length){
-        out.push("<path " + (fill ? "fill" : "stroke") + '="' + run.colour + '" d="' + d.join("") + '"/>');
+      var attr = "<path " + (fill ? "fill" : "stroke") + '="' + run.colour + '" d="';
+      if (see_through){
+        // One element per copy, so that overlaps deepen as on the screen.
+        for (var e = 0; e < d.length; e++) { out.push(attr + d[e] + '"/>'); }
+      } else if (d.length){
+        out.push(attr + d.join("") + '"/>');
       }
     }
     out.push("</g>", "</svg>");
     return out.join("\n");
   }
+};
+
+// Colour of the copies made by transform t (0 .. n-1): spread over the scheme.
+var transformColour = function(t, n){
+  return generationColour(n > 1 ? t / (n - 1) : 0);
 };
 
 // Colour for a generation, t from 0 (first) to 1 (last).

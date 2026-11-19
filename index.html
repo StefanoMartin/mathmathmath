@@ -80,11 +80,20 @@
       <fieldset>
         <legend>Display</legend>
         <label><input type="checkbox" id="only_last"> Last generation only</label><br>
-        <label><input type="checkbox" id="colored" checked> Colour by generation</label><br>
         <label><input type="checkbox" id="filled"> Filled shapes</label><br>
         <label><input type="checkbox" id="show_handles" checked> Show transforms on the figure</label>
         <table class="controls colours">
           <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
+          <tr>
+            <th>Colouring</th>
+            <td colspan="2" class="wide">
+              <select id="colour_mode" title="How the copies are coloured">
+                <option value="generation" selected>By generation</option>
+                <option value="transform">By transform</option>
+                <option value="ink">One ink</option>
+              </select>
+            </td>
+          </tr>
           <tr>
             <th>Colours</th>
             <td colspan="2" class="wide">
@@ -99,6 +108,16 @@
                 <option value="1.5" selected>Medium</option>
                 <option value="2.5">Bold</option>
               </select>
+            </td>
+          </tr>
+          <tr>
+            <th>Opacity</th>
+            <td colspan="2" class="wide">
+              <div class="repeat_box">
+                <input type="range" id="opacity" min="10" max="100" step="5" value="100"
+                  title="Below 100%, overlapping copies show as deeper colour">
+                <span id="opacity_value">100%</span>
+              </div>
             </td>
           </tr>
         </table>
@@ -148,6 +167,7 @@
     <div id="figure">
       <canvas id="similar_canvas"></canvas>
       <div id="point_count"></div>
+      <div id="dimension" title="Similarity dimension, worked out from the scales of the transforms. It is the fractal dimension when the copies do not overlap."></div>
       <div class="figure_tools">
         <button type="button" id="undoButton" class="figure_button" title="Undo (Ctrl+Z, or the browser's Back)" disabled>&#8630;</button>
         <button type="button" id="redoButton" class="figure_button" title="Redo (Ctrl+Y, or the browser's Forward)" disabled>&#8631;</button>
