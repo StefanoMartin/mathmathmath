@@ -83,8 +83,17 @@ starting from a cube instead of a square.
 `4d.html` (linked from the other two pages as *4D figures*) goes one dimension
 further: each transform copies the figure in X, Y, Z and a fourth direction, W.
 W cannot be seen, so the figure is shown moving through it, as an animation in
-3D, drawn with random dots.
+3D.
 
+- **Generations** – as on the 3D page, the figure starts from a tesseract (the
+  4D cube) and Repeat copies it generation after generation; *Last generation
+  only* off shows the earlier generations as outlines around the last. With
+  *Solid shapes* each copy is drawn as a lit solid: turning through W, the
+  outside of the tesseract seen in perspective (a cube inside a cube, joined);
+  sliced, the 3D shape the slice cuts out of it. Off, the copies are outlines:
+  the tesseract's 32 edges, or the edges of the cut. While it plays, a figure
+  of more than 3,000 copies is drawn a generation lighter. *Random dots*
+  instead draws the figure with the chaos game, finer but without solids.
 - **Turning through W** – the figure turns in a plane that mixes W with X, Y or
   Z, and is seen along W in perspective: the parts further in W look smaller,
   so the figure seems to turn inside out, the way a tesseract does in drawings.
@@ -107,7 +116,7 @@ W cannot be seen, so the figure is shown moving through it, as an animation in
   frames.
 - **Presets** – the Sierpinski 5-cell (the 4D tetrahedron), the 4D Menger
   sponge, a cross of crosses, Cantor dust and a tree branching into W.
-- **Colouring** by depth in W, by transform, by depth or in one ink; the
+- **Colouring** by place in W, by transform, by depth or in one ink; the
   dimension; undo and redo; turning, moving and zooming the 3D view; links
   (with the figure) and PNG.
 
@@ -157,8 +166,8 @@ npm run test:browser
 | `tests/unit/space.test.js` | 3D: transforms in space, turns read back, generations of cubes, the camera and its fit, dragging frames, finding them, visible faces, random dots, links |
 | `tests/e2e/space.spec.js` | The 3D page on a desktop: generations, the panel, dragging frames and their dots, turning and zooming, random dots, links, Random, PNG |
 | `tests/e2e/space-phone.spec.js` | The 3D page on a phone: layout, turning the view and dragging a frame with a finger, pinch |
-| `tests/unit/hyper.test.js` | 4D: turns in a plane, any turn split into six and back, transforms, fixed points, the presets' dimensions and bounds, turning and slicing, frames and dragging them, links |
-| `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset both ways, the transform boxes, dragging frames, undo, Random, links, the view, the links between pages |
+| `tests/unit/hyper.test.js` | 4D: turns in a plane, any turn split into six and back, transforms, fixed points, the presets' dimensions and bounds, generations of tesseracts, their outside and their cuts, dots turned and sliced, frames and dragging them, links |
+| `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset as copies and as dots both ways, generations and their options, the transform boxes, dragging frames, undo, Random, links, the view, the links between pages |
 | `tests/e2e/hyper-phone.spec.js` | The 4D page on a phone: layout, Play, turning with a finger, dragging a frame, pinch |
 
 ## Files
@@ -184,7 +193,7 @@ npm run test:browser
 | `javascript/space.js` | The 3D engine: transforms in space, generations of cubes, solid and outline drawing, the frames, random dots, the camera |
 | `javascript/space-page.js` | The 3D page: presets, transform boxes, links and undo, dragging frames, turning and zooming the view |
 | `4d.html` | The 4D page |
-| `javascript/hyper.js` | The 4D engine: transforms in four dimensions, random dots turned through W or sliced along it, then drawn with the 3D camera; the frames and dragging them |
+| `javascript/hyper.js` | The 4D engine: transforms in four dimensions, generations of tesseracts drawn solid or as outlines, random dots, all turned through W or sliced along it and seen with the 3D camera; the frames and dragging them |
 | `javascript/hyper-page.js` | The 4D page: presets, transform boxes, playing the animation, links and undo, dragging frames, colours and the view |
 
 ## How it works

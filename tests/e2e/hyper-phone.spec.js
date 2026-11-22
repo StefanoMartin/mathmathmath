@@ -18,7 +18,7 @@ test("4D on a phone: the figure on top, a finger turns it or, paused, drags a fr
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(HYPER);
-  await expect(page.locator("#point_count")).toHaveText(/dots/);
+  await expect(page.locator("#point_count")).toHaveText(/dots|copies/);
   expect((await page.locator("#figure").boundingBox()).y).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.locator("#figurePlay")).toBeVisible();

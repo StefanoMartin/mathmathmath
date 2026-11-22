@@ -18,11 +18,13 @@ var gridOfThirds4 = function(keep){
   return out;
 };
 
-// The 5-cell (the 4D tetrahedron): five corners, all the same distance apart.
+// The 5-cell (the 4D tetrahedron): five corners, all the same distance apart,
+// then squeezed a little in W to fit in the unit tesseract, so that the
+// copies of the tesseract nest inside each other.
 var FIVE_CELL = (function(){
   var a = -1 / Math.sqrt(5), b = 4 / Math.sqrt(5);
   return [[1, 1, 1, a], [1, -1, -1, a], [-1, 1, -1, a], [-1, -1, 1, a], [0, 0, 0, b]]
-    .map(function(p){ return p.map(function(v){ return (v + 1) / 2; }); });
+    .map(function(p){ return [(p[0] + 1) / 2, (p[1] + 1) / 2, (p[2] + 1) / 2, (p[3] - a) / (b - a)]; });
 })();
 
 // A tree whose branches lean out into all three directions across its trunk:
@@ -51,15 +53,15 @@ var tree4 = function(){
 };
 
 var HYPER_PRESETS = [
-  { name: "Sierpinski 5-cell", note: "Five half-size copies at the corners of the 5-cell, the 4D tetrahedron. Each slice is a tetrahedron-like Sierpinski figure.",
+  { name: "Sierpinski 5-cell", repeat: 5, note: "Five half-size copies at the corners of the 5-cell, the 4D tetrahedron (squeezed a little in W to fit the tesseract). Each slice is a tetrahedron-like Sierpinski figure.",
     t: FIVE_CELL.map(function(v){ return { move: v.map(function(c){ return c / 2; }), size: same4(0.5) }; }) },
-  { name: "Menger sponge", note: "The tesseract (4D cube) cut in thirds, keeping the 48 parts with at most one middle place: the 4D Menger sponge.",
+  { name: "Menger sponge", repeat: 2, note: "The tesseract (4D cube) cut in thirds, keeping the 48 parts with at most one middle place: the 4D Menger sponge.",
     t: gridOfThirds4(function(middles){ return middles <= 1; }) },
-  { name: "Cross of crosses", note: "The middle of the tesseract and its eight neighbours, a third the size.",
+  { name: "Cross of crosses", repeat: 4, note: "The middle of the tesseract and its eight neighbours, a third the size.",
     t: gridOfThirds4(function(middles){ return middles >= 3; }) },
-  { name: "Cantor dust", note: "The sixteen corners of the tesseract, a third the size.",
+  { name: "Cantor dust", repeat: 3, note: "The sixteen corners of the tesseract, a third the size.",
     t: gridOfThirds4(function(middles){ return middles === 0; }) },
-  { name: "Tree", note: "A trunk, its top turned a little, and four branches leaning out into X, Z and W.",
+  { name: "Tree", repeat: 5, note: "A trunk, its top turned a little, and four branches leaning out into X, Z and W.",
     t: tree4() }
 ];
 
@@ -223,6 +225,10 @@ var validTransform4 = function(t){
 var readHyperState = function(){
   return {
     transforms: readHyperTransforms().map(compactTransform4),
+    repeat: Math.max(0, Math.round(readNumber(byId("repetition"), 3))),
+    last: byId("only_last").checked,
+    solid: byId("solid").checked,
+    dots: byId("draw_mode").value === "dots",
     show: hyper.show, plane: hyper.plane,
     angle: roundTo(hyper.angle, 1), slice: roundTo(hyper.slice, 3),
     colour: hyper.colour_mode, palette: byId("palette").value,
@@ -230,11 +236,13 @@ var readHyperState = function(){
   };
 };
 
+// r = repeat, l = last generation only, so = solid, d = 1 for random dots,
 // m = turn or slice, pl = plane, a = angle, s = slice, c = colouring,
 // p = colour scheme, v = yaw,pitch, t = transforms separated by ";"
 // (older links: f = a preset instead).
 var encodeHyperState = function(state){
-  return "m=" + state.show + "&pl=" + state.plane + "&a=" + state.angle +
+  return "r=" + state.repeat + "&l=" + (state.last ? 1 : 0) + "&so=" + (state.solid ? 1 : 0) +
+    (state.dots ? "&d=1" : "") + "&m=" + state.show + "&pl=" + state.plane + "&a=" + state.angle +
     "&s=" + state.slice + "&c=" + state.colour + "&p=" + state.palette + "&v=" + state.view.join(",") +
     "&t=" + state.transforms.map(function(t){ return compactTransform4(t).join(","); }).join(";");
 };
@@ -243,7 +251,7 @@ var encodeHyperState = function(state){
 var decodeHyperState = function(hash){
   var text = String(hash || "").replace(/^#/, "");
   if (!text) { return null; }
-  var state = { transforms: null, show: "turn", plane: "xw", angle: 0, slice: 0.5, colour: "w", palette: "0",
+  var state = { transforms: null, repeat: 3, last: true, solid: true, dots: false, show: "turn", plane: "xw", angle: 0, slice: 0.5, colour: "w", palette: "0",
                 view: [DEFAULT_VIEW4.yaw, DEFAULT_VIEW4.pitch] };
   var preset = null;
   text.split("&").forEach(function(part){
@@ -254,6 +262,10 @@ var decodeHyperState = function(hash){
       state.transforms = list.length && list.every(validTransform4) ? list.slice(0, HYPER_MAX_TRANSFORMS) : null;
     }
     else if (key === "f" && HYPER_PRESETS[num]) { preset = num; }
+    else if (key === "r" && /^\d+$/.test(value)) { state.repeat = Math.min(num, 30); }
+    else if (key === "l") { state.last = value === "1"; }
+    else if (key === "so") { state.solid = value !== "0"; }
+    else if (key === "d") { state.dots = value === "1"; }
     else if (key === "m" && (value === "turn" || value === "slice")) { state.show = value; }
     else if (key === "pl" && ["xw", "yw", "zw"].indexOf(value) >= 0) { state.plane = value; }
     else if (key === "a" && isFinite(num) && value !== "") { state.angle = ((num % 360) + 360) % 360; }
@@ -265,12 +277,20 @@ var decodeHyperState = function(hash){
       if (v.length === 2 && v.every(isFinite)) { state.view = [v[0], Math.max(-90, Math.min(90, v[1]))]; }
     }
   });
-  if (!state.transforms && preset !== null) { state.transforms = HYPER_PRESETS[preset].t.map(compactTransform4); }
+  if (!state.transforms && preset !== null){
+    state.transforms = HYPER_PRESETS[preset].t.map(compactTransform4);
+    // An older link: random dots, as the page then drew.
+    if (!/(^|&)r=/.test(text)) { state.repeat = HYPER_PRESETS[preset].repeat; state.dots = true; }
+  }
   return state.transforms ? state : null;
 };
 
 var applyHyperState = function(state){
   showHyperTransforms(state.transforms);
+  byId("repetition").value = state.repeat;
+  byId("only_last").checked = state.last;
+  byId("solid").checked = state.solid;
+  byId("draw_mode").value = state.dots ? "dots" : "copies";
   hyper.show = state.show; byId("show").value = state.show;
   hyper.plane = state.plane; byId("plane").value = state.plane;
   hyper.angle = state.angle;
@@ -358,8 +378,33 @@ var updatePresetLabel4 = function(){
 };
 
 // The figure changed (push: as a step that can be undone).
+// Repeat within what can be drawn, with a note when it is held back.
+var clampRepeat4 = function(){
+  var input = byId("repetition"), most = hyper.max_repetition();
+  var r = Math.max(0, Math.round(readNumber(input, 3))), note = "";
+  if (hyper.draw_mode === "copies" && r > most){
+    r = most;
+    note = "At most " + most + " generations for this figure (" + formatCount(hyper.number_copies(most)) + " copies).";
+  }
+  if (String(r) !== input.value) { input.value = r; }
+  input.max = most;
+  byId("limit_warning").textContent = note;
+  hyper.repetition = r;
+};
+
 var figureChanged = function(push){
+  // Another way of drawing: fit the view to it.
+  if (hyper.draw_mode !== byId("draw_mode").value) { hyper.need_fit = true; }
+  hyper.draw_mode = byId("draw_mode").value;
   hyper.set_transforms(readHyperTransforms());
+  hyper.only_last = byId("only_last").checked;
+  hyper.solid = byId("solid").checked;
+  var dots = hyper.draw_mode === "dots";
+  Array.prototype.forEach.call(document.querySelectorAll(".copies_only"), function(el){
+    el.classList.toggle("unused", dots);
+    Array.prototype.forEach.call(el.querySelectorAll("input, button"), function(c){ c.disabled = dots; });
+  });
+  clampRepeat4();
   updateDimension4();
   updatePresetLabel4();
   byId("addTransform").disabled = hyperBoxes().length >= HYPER_MAX_TRANSFORMS;
@@ -371,6 +416,7 @@ var showPreset = function(i){
   current_preset = i;
   hyper.need_fit = true;
   showHyperTransforms(HYPER_PRESETS[i].t);
+  byId("repetition").value = HYPER_PRESETS[i].repeat;
   figureChanged(true);
 };
 
@@ -443,18 +489,25 @@ var paint4 = function(){
   if (canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
   var ctx = canvas.getContext("2d");
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  hyper.prepare(w, h, dpr);
-  if (hyper.placed === 0) { hyper.run(playing ? 16 : 12); }
-  if (hyper.failed){
-    ctx.fillStyle = PAPER;
-    ctx.fillRect(0, 0, w, h);
-  } else {
-    hyper.render(ctx);
-    // Paused: each transform's frame, to drag.
+  var text;
+  if (hyper.draw_mode === "copies"){
+    hyper.paint_copies(ctx, w, h, dpr, playing);
     if (!playing) { hyper.paint_frames(ctx, dpr); }
+    text = formatCount(hyper.drawn) + (hyper.drawn === 1 ? " copy" : " copies");
+  } else {
+    hyper.prepare(w, h, dpr);
+    if (hyper.placed === 0) { hyper.run(playing ? 16 : 12); }
+    if (hyper.failed){
+      ctx.fillStyle = PAPER;
+      ctx.fillRect(0, 0, w, h);
+    } else {
+      hyper.render(ctx);
+      // Paused: each transform's frame, to drag.
+      if (!playing) { hyper.paint_frames(ctx, dpr); }
+    }
+    text = hyper.failed ? "No dots: the point flies off" :
+      formatCount(hyper.in_view) + " dots" + (!playing && !hyper.done() ? "…" : "");
   }
-  var text = hyper.failed ? "No dots: the point flies off" :
-    formatCount(hyper.in_view) + " dots" + (!playing && !hyper.done() ? "…" : "");
   if (Math.abs(hyper.view.zoom - 1) > 1e-9) { text += ", zoom " + Math.round(hyper.view.zoom * 100) + "%"; }
   byId("point_count").textContent = text;
 };
@@ -695,6 +748,7 @@ var panelEvents4 = function(){
     current_preset = -1;
     hyper.need_fit = true;
     showHyperTransforms(randomHyper());
+    byId("repetition").value = 3;
     figureChanged(true);
     fitView4();
   });
@@ -704,6 +758,18 @@ var panelEvents4 = function(){
     if (!HYPER_PRESETS[i]) { return; }
     showPreset(i);
     fitView4();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".repeat_box .step"), function(button){
+    button.addEventListener("click", function(){
+      var input = byId("repetition");
+      input.value = Math.max(0, Math.round(readNumber(input, 3)) + Number(button.dataset.step));
+      figureChanged(true);
+    });
+  });
+  byId("repetition").addEventListener("input", function(){ figureChanged(true); });
+  ["only_last", "solid", "draw_mode"].forEach(function(id){
+    byId(id).addEventListener("change", function(){ figureChanged(true); });
   });
 
   byId("show").addEventListener("change", function(){
@@ -801,7 +867,7 @@ var startHyperPage = function(){
   hyperGestures();
 
   var state = decodeHyperState(location.hash) ||
-    decodeHyperState("#f=0&v=" + DEFAULT_VIEW4.yaw + "," + DEFAULT_VIEW4.pitch);
+    decodeHyperState("#f=0&r=" + HYPER_PRESETS[0].repeat + "&v=" + DEFAULT_VIEW4.yaw + "," + DEFAULT_VIEW4.pitch);
   hyper.need_fit = true;
   applyHyperState(state);
   try { history.replaceState({ i: 0 }, "", "#" + encodeHyperState(readHyperState())); } catch (e) { /* fine */ }

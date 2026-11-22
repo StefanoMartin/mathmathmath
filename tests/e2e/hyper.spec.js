@@ -12,7 +12,7 @@ async function openHyper(page, hash){
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error") { errors.push(m.text()); } });
   await page.goto(HYPER + (hash ? "#" + hash : ""));
-  await expect(page.locator("#point_count")).toHaveText(/dots/);
+  await expect(page.locator("#point_count")).toHaveText(/dots|copies/);
   return errors;
 }
 // Paused: wait until all the dots are placed.
@@ -39,8 +39,10 @@ test("4D: it plays on opening, and turns through W", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("4D: paused, the picture fills in; the slider sets the angle or the slice", async ({ page }) => {
+test("4D: random dots: paused, the picture fills in; the slider sets the angle or the slice", async ({ page }) => {
   const errors = await openHyper(page);
+  await page.selectOption("#draw_mode", "dots");
+  await expect(page.locator("#repetition")).toBeDisabled();
   await page.keyboard.press("Space");
   await expect(page.locator("#play")).toHaveText("Play");
   await page.locator("#w_number").fill("90");
@@ -62,19 +64,20 @@ test("4D: paused, the picture fills in; the slider sets the angle or the slice",
   expect(errors).toEqual([]);
 });
 
-test("4D: every preset draws, in both ways of showing W", async ({ page }) => {
+test("4D: every preset draws, as copies and as dots, in both ways of showing W", async ({ page }) => {
   const errors = await openHyper(page);
   await page.locator("#play").click();
   const count = await page.evaluate(() => HYPER_PRESETS.length);
   for (let i = 0; i < count; i++){
     await page.selectOption("#preset", String(i));
-    for (const show of ["turn", "slice"]){
+    for (const [show, mode] of [["turn", "copies"], ["slice", "copies"], ["turn", "dots"], ["slice", "dots"]]){
+      await page.selectOption("#draw_mode", mode);
       await page.selectOption("#show", show);
       // (Cantor dust has gaps in W, between a third and two thirds for one.)
       await page.locator("#w_number").fill("30");
       await filled(page);
       expect(await page.evaluate(() => hyper.failed)).toBe(false);
-      expect(await inked(page), "preset " + i + " " + show).toBeGreaterThan(300);
+      expect(await inked(page), "preset " + i + " " + show + " " + mode).toBeGreaterThan(300);
     }
   }
   expect(errors).toEqual([]);
@@ -227,5 +230,47 @@ test("4D: paused, the frames can be dragged; playing, dragging turns the view", 
   await page.keyboard.press("h");
   await expect(page.locator("#toggleHandles")).toHaveText("Show transforms");
   expect(await page.evaluate(() => hyper.handle_at(10, 10, 1000))).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test("4D: generations of the tesseract: repeat, last generation only, solid, the limit", async ({ page }) => {
+  const errors = await openHyper(page);
+  await page.locator("#play").click();
+  await expect(page.locator("#draw_mode")).toHaveValue("copies");
+  await expect(page.locator("#repetition")).toHaveValue("5");
+  await expect(page.locator("#point_count")).toHaveText("3,125 copies");
+  await page.locator('.repeat_box .step[data-step="-1"]').click();
+  await expect(page.locator("#point_count")).toHaveText("625 copies");
+  for (let k = 0; k < 3; k++) { await page.locator('.repeat_box .step[data-step="1"]').click(); }
+  // Too many copies: held back, with a note.
+  await expect(page.locator("#repetition")).toHaveValue("6");
+  await expect(page.locator("#limit_warning")).toHaveText("At most 6 generations for this figure (19,531 copies).");
+  await page.locator("#repetition").fill("2");
+  await expect(page.locator("#point_count")).toHaveText("25 copies");
+  const solid = await inked(page);
+  await page.locator("#solid").uncheck();
+  const lines = await inked(page);
+  expect(lines).toBeLessThan(solid);
+  await page.locator("#only_last").uncheck();
+  expect(await inked(page)).toBeGreaterThan(lines);
+  // Sliced: the copies the slice crosses, cut.
+  await page.locator("#solid").check();
+  await page.selectOption("#show", "slice");
+  await page.locator("#w_number").fill("50");
+  await expect(page.locator("#point_count")).toHaveText(/^\d+ cop/);
+  expect(await page.evaluate(() => hyper.drawn)).toBeGreaterThan(0);
+  // All of it in the link.
+  await page.waitForFunction(() => /r=2&l=0&so=1/.test(location.hash));
+  await page.reload();
+  await expect(page.locator("#repetition")).toHaveValue("2");
+  await expect(page.locator("#only_last")).not.toBeChecked();
+  await expect(page.locator("#show")).toHaveValue("slice");
+  // Playing, a figure of many copies is lighter.
+  await page.locator("#play").click();
+  await page.selectOption("#show", "turn");
+  await page.selectOption("#preset", "4");
+  await expect(page.locator("#point_count")).toHaveText("7,776 copies");
+  await page.locator("#play").click();
+  await expect(page.locator("#point_count")).toHaveText("1,296 copies");
   expect(errors).toEqual([]);
 });

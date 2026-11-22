@@ -27,6 +27,37 @@
       </p>
 
       <fieldset>
+        <legend>Generations</legend>
+        <table class="controls">
+          <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
+          <tr>
+            <th>Draw</th>
+            <td colspan="2" class="wide">
+              <select id="draw_mode" title="Copy the tesseract generation after generation, or let one point jump about at random and leave a dot wherever it lands">
+                <option value="copies" selected>Copies of the tesseract</option>
+                <option value="dots">Random dots</option>
+              </select>
+            </td>
+          </tr>
+          <tr class="row copies_only">
+            <th>Repeat</th>
+            <td colspan="2" class="wide">
+              <div class="repeat_box">
+                <input class="number_slide" type="number" value="3" min="0" id="repetition">
+                <button type="button" class="step" data-step="-1" title="One generation less">&minus;</button><button type="button" class="step" data-step="1" title="One generation more">+</button>
+              </div>
+            </td>
+          </tr>
+        </table>
+        <p id="limit_warning" class="limit_warning"></p>
+        <label class="copies_only"><input type="checkbox" id="only_last" checked> Last generation only</label><br>
+        <label class="copies_only" title="Each copy as a solid, lit from the upper left, or only its edges"><input type="checkbox" id="solid" checked> Solid shapes</label>
+        <p class="hint copies_only">Turning through W, a copy of the tesseract looks like a cube inside a
+          cube; sliced, it is cut into a 3D shape. Solid shows the outside of each, lit. While it plays,
+          a figure of many copies is drawn a generation lighter, in full when paused.</p>
+      </fieldset>
+
+      <fieldset>
         <legend>Through W</legend>
         <table class="controls">
           <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
@@ -96,7 +127,7 @@
             <th>Colouring</th>
             <td class="wide">
               <select id="colour_mode" title="How the dots are coloured">
-                <option value="w" selected>By depth in W</option>
+                <option value="w" selected>By place in W</option>
                 <option value="transform">By transform</option>
                 <option value="depth">By depth</option>
                 <option value="ink">One ink</option>

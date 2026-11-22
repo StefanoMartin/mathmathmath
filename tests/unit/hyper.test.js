@@ -62,7 +62,7 @@ test("the presets: their dimensions", () => {
   assert.equal(H.dimension(), Infinity);
 });
 
-test("the figure's box: the 5-cell spans its corners, the tree has a 4D spread", () => {
+test("the figure's box: the 5-cell spans its corners, in the unit tesseract; the tree has a 4D spread", () => {
   H.set_transforms(preset("Sierpinski 5-cell"));
   const b = plain(H.box), corners = plain(app.FIVE_CELL);
   for (let a = 0; a < 4; a++){
@@ -82,6 +82,7 @@ function drawn(setup){
   H.set_transforms(preset("Menger sponge"));
   H.view = { yaw: -30, pitch: 20, zoom: 1, pan_x: 0, pan_y: 0 };
   H.colour_mode = "w";
+  H.draw_mode = "dots";
   setup();
   H.prepare(120, 90, 1);
   for (let k = 0; k < 400 && !H.done(); k++) { H.run(50); }
@@ -216,6 +217,7 @@ test("the view holds still after an edit, and fits again when asked", () => {
 
 test("the link keeps the figure and how it is seen, and ignores nonsense", () => {
   const state = { transforms: [[0.1, 0.2, 0.3, 0.4, 10, 0, -20, 0, 30, 0, 0.5, 0.5, 0.4, 0.5, 1], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5]],
+                  repeat: 4, last: false, solid: false, dots: true,
                   show: "slice", plane: "zw", angle: 45, slice: 0.25, colour: "depth", palette: "0", view: [10, -20] };
   assert.deepEqual(plain(app.decodeHyperState("#" + app.encodeHyperState(state))), state);
   const odd = plain(app.decodeHyperState("#f=99&m=fly&pl=xy&a=-30&s=7&c=red&v=1,200&t=0,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5"));
@@ -225,9 +227,106 @@ test("the link keeps the figure and how it is seen, and ignores nonsense", () =>
   assert.equal(odd.slice, 1);
   assert.equal(odd.colour, "w");
   assert.deepEqual(odd.view, [1, 90]);
-  // Older links name a preset.
-  assert.equal(plain(app.decodeHyperState("#f=1&m=slice")).transforms.length, 48);
+  // Older links name a preset, and were drawn with random dots.
+  const older = plain(app.decodeHyperState("#f=1&m=slice"));
+  assert.equal(older.transforms.length, 48);
+  assert.equal(older.dots, true);
   assert.equal(app.decodeHyperState("#t=1,2,3"), null);
   assert.equal(app.decodeHyperState("#m=slice"), null);
   assert.equal(app.decodeHyperState(""), null);
+});
+
+// A canvas that only counts what is filled, and the polygons.
+function countingContext(){
+  const ctx = { fills: 0, polys: [], cur: null, set fillStyle(v){}, set strokeStyle(v){}, set lineWidth(v){},
+    set lineJoin(v){}, set globalAlpha(v){} };
+  ctx.fillRect = () => {};
+  ctx.beginPath = () => { ctx.cur = []; };
+  ctx.moveTo = (x, y) => { ctx.cur.push([x, y]); };
+  ctx.lineTo = (x, y) => { ctx.cur.push([x, y]); };
+  ctx.closePath = () => {};
+  ctx.fill = () => { ctx.fills++; ctx.polys.push(ctx.cur); };
+  ctx.stroke = () => {};
+  return ctx;
+}
+const area = (poly) => Math.abs(poly.reduce((s, p, i) => {
+  const q = poly[(i + 1) % poly.length];
+  return s + p[0] * q[1] - q[0] * p[1];
+}, 0)) / 2;
+
+test("copies of the tesseract: generation after generation", () => {
+  H.draw_mode = "copies";
+  H.need_fit = true;
+  H.set_transforms(preset("Sierpinski 5-cell"));
+  H.repetition = 3;
+  H.build_key = "";
+  H.build();
+  assert.deepEqual(plain(H.level_start), [0, 1, 6, 31, 156]);
+  // A copy of the last generation is three half-size steps: 1/8 the size.
+  const o = 20 * 155, m = plain(H.copies.slice(o, o + 20));
+  assert.ok(close(m[0], 0.125) && close(m[15], 0.125));
+  // Each copy of the last generation lies in its frame (the copy of the first generation that made it).
+  const tag = H.tags[155], f = plain(app.hyperMap(H.transforms[tag]));
+  const corner = apply4(f, [0, 0, 0, 0]), far = apply4(f, [1, 1, 1, 1]);
+  for (let r = 0; r < 4; r++){ assert.ok(m[16 + r] >= corner[r] - 1e-9 && m[16 + r] + 0.125 <= far[r] + 1e-9); }
+  // Held back to what can be drawn.
+  H.repetition = 30;
+  assert.equal(H.max_repetition(), 6);
+  H.build_key = "";
+  H.build();
+  assert.equal(H.level_start.length - 2, 6);
+});
+
+test("solid copies: the outside of the tesseract as seen, and the cuts of a slice", () => {
+  H.need_fit = true;
+  H.set_transforms([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5]]);
+  H.view = { yaw: 0, pitch: 0, zoom: 1, pan_x: 0, pan_y: 0 };
+  H.repetition = 0; H.only_last = true; H.solid = true; H.colour_mode = "w";
+  H.show = "turn"; H.plane = "xw";
+  // Seen straight along W, from the front: the near cube in W covers the far
+  // one; of its faces only the front is seen (one square).
+  H.angle = 0;
+  let ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.equal(H.drawn, 1);
+  assert.equal(ctx.fills, 1);
+  const front = area(ctx.polys[0]);
+  // Turned a quarter through W, X and W change places: still a cube seen from the front.
+  H.angle = 90;
+  ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.equal(ctx.fills, 1);
+  // Half way, more of the tesseract shows, and it is wider than it is high.
+  H.angle = 45;
+  ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.ok(ctx.fills >= 2, "faces " + ctx.fills);
+  const xs = ctx.polys.flat().map((p) => p[0]), ys = ctx.polys.flat().map((p) => p[1]);
+  assert.ok(Math.max(...xs) - Math.min(...xs) > Math.max(...ys) - Math.min(...ys));
+  // Sliced through the middle: a cube (the front face seen), the size of the near cube's front or less.
+  H.show = "slice"; H.slice = 0.5;
+  ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.equal(ctx.fills, 1);
+  assert.ok(area(ctx.polys[0]) <= front + 1e-6);
+  assert.equal(ctx.polys[0].length, 4);
+  // A tesseract turned in XW and sliced: the cut is a box with a sloping side.
+  H.set_transforms([[0, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0.5, 0.5, 0.5, 0.5]]);
+  H.view = { yaw: -30, pitch: 20, zoom: 1, pan_x: 0, pan_y: 0 };
+  ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.ok(ctx.fills >= 2 && ctx.fills <= 4, "faces " + ctx.fills);
+  // Past the copy in W: nothing.
+  H.slice = 0; H.box.min[3] -= 1;
+  ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.equal(H.drawn, 0);
+  // As outlines: the 32 edges turning, nothing filled.
+  H.set_transforms([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5]]);
+  H.show = "turn"; H.solid = false;
+  ctx = countingContext();
+  H.paint_copies(ctx, 400, 400, 1);
+  assert.equal(ctx.fills, 0);
+  assert.equal(H.drawn, 1);
+  H.solid = true;
 });
