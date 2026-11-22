@@ -13,8 +13,12 @@ const FILES = [
   "state.js", "favourites.js", "drawing.js", "export.js", "events.js", "gestures.js"
 ];
 
-// A fresh copy of the app: every test file gets its own, so they cannot affect each other.
-function loadApp(){
+// The scripts of the 3D page (3d.html), without the one that starts it.
+const SPACE_FILES = ["fractal.js", "basics.js", "space.js", "space-page.js"];
+
+// A fresh copy of the app (or of the given scripts): every test file gets its
+// own, so they cannot affect each other.
+function loadApp(files = FILES){
   const store = new Map();
   const sandbox = {
     console,
@@ -33,7 +37,7 @@ function loadApp(){
     }
   };
   vm.createContext(sandbox);
-  for (const file of FILES){
+  for (const file of files){
     const code = fs.readFileSync(path.join(ROOT, "javascript", file), "utf8");
     vm.runInContext(code, sandbox, { filename: file });
   }
@@ -44,4 +48,4 @@ function loadApp(){
 // assertions would see as different: compare plain copies instead.
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
-module.exports = { loadApp, plain, ROOT };
+module.exports = { loadApp, plain, ROOT, SPACE_FILES };

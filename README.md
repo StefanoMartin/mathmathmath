@@ -49,6 +49,25 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
   screen, colours included, so copying the link shares it.
 - **Export** – save the current view as a PNG picture or an SVG drawing.
 
+### Figures in 3D
+
+`3d.html` (linked from the main page as *3D figures*) does the same in space.
+Each transform moves the figure (X, Y, Z), turns it (tilted around Z, then X,
+then turned around the upright Y, in degrees), resizes it along each side and
+may mirror it. The figure is drawn with millions of random dots: for each
+pixel only the nearest dot is kept, the way the surface faces is worked out
+from those depths, and it is lit from the upper left, while the far parts fade
+into the paper.
+
+- **Presets** – Menger sponge, Sierpinski tetrahedron and pyramid, octahedron
+  flake, cross of crosses, Cantor dust, a fern and a tree.
+- **Turning the view** – drag the figure to turn it, Shift-drag (or two
+  fingers) to move it, scroll or pinch to zoom; Front, Side, Top and Turned
+  views; Fit.
+- **Colouring** – by depth, by transform, or one ink, with the same colour
+  schemes as the flat figures.
+- **Dimension, Random, undo, links and PNG** – as on the main page.
+
 ## Running it locally
 
 There is nothing to install or build: open `index.html` in a browser.
@@ -92,6 +111,9 @@ npm run test:browser
 | `tests/unit/state.test.js` | Links read back the same, bad links are refused, favourites are cleaned, presets are valid, the zoom readout |
 | `tests/e2e/app.spec.js` | The page on a desktop: everything a person does with it |
 | `tests/e2e/phone.spec.js` | The page on a phone: layout, pinch, two-finger move, dragging with a finger |
+| `tests/unit/space.test.js` | 3D: transforms in space, fixed points, the dimension, presets, dots on the figure, the camera, the depth buffer, links |
+| `tests/e2e/space.spec.js` | The 3D page on a desktop: editing, undo, turning and zooming, colouring, links, Random, PNG |
+| `tests/e2e/space-phone.spec.js` | The 3D page on a phone: layout, turning with a finger, pinch |
 
 ## Files
 
@@ -112,6 +134,9 @@ npm run test:browser
 | `javascript/events.js` | What the panel's buttons, fields and keys do |
 | `javascript/gestures.js` | Mouse and touch on the figure: zoom, pan, pinch, dragging the frames |
 | `javascript/main.js` | Starts the page (loaded last) |
+| `3d.html` | The 3D page |
+| `javascript/space.js` | The 3D engine: transforms in space, random dots with a depth buffer, the camera, lighting |
+| `javascript/space-page.js` | The 3D page: presets, transform boxes, links and undo, turning and zooming the view |
 
 ## How it works
 
