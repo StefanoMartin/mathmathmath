@@ -415,20 +415,47 @@ var updateDimension3 = function(){
   byId("dimension").textContent = text;
 };
 
-// The preset list shows the figure last picked, marked when it was changed since.
-var current_preset = -1;
-var updatePresetLabel = function(){
-  var select = byId("preset"), placeholder = select.options[0];
-  if (current_preset < 0){
-    placeholder.textContent = "Presets";
-  } else {
-    var p = SPACE_PRESETS[current_preset];
-    var same = JSON.stringify(readSpaceTransforms().map(compactTransform3)) ===
-      JSON.stringify(p.t.map(compactTransform3));
-    placeholder.textContent = p.name + (same ? "" : " (edited)");
-  }
-  select.value = "";
+// The Presets list, with the favourites saved in this browser (keep.js).
+var figureFavourites = null;
+var spaceFigureKey = function(list){ return JSON.stringify(list.map(compactTransform3)); };
+var preset_keys3 = [];
+
+var startFavourites3 = function(){
+  figureFavourites = makeFavourites({
+    storeKey: "similar-fractal-3d.favourites",
+    fileName: "similar-fractal-3d-favourites.json",
+    app: "similar-fractal-3d",
+    presets: SPACE_PRESETS,
+    link: function(){ return encodeSpaceState(readSpaceState()); },
+    valid: function(link){ return decodeSpaceState("#" + link) !== null; },
+    figureKey: function(){ return spaceFigureKey(readSpaceTransforms()); },
+    presetKey: function(i){
+      if (preset_keys3[i] === undefined) { preset_keys3[i] = spaceFigureKey(SPACE_PRESETS[i].t); }
+      return preset_keys3[i];
+    },
+    showPreset: function(i){
+      showSpaceTransforms(SPACE_PRESETS[i].t);
+      byId("repetition").value = SPACE_PRESETS[i].repeat;
+      if (SPACE_PRESETS[i].dots) { byId("draw_mode").value = "dots"; }
+      figureChanged(true);
+      fitView();
+      // A pick from the list is a step to undo of its own, at once.
+      clearTimeout(history_timer);
+      saveHistory(true);
+    },
+    showLink: function(link){
+      var state = decodeSpaceState("#" + link);
+      space.view.zoom = 1; space.view.pan_x = 0; space.view.pan_y = 0;
+      need_fit = true;
+      applySpaceState(state);
+      clearTimeout(history_timer);
+      saveHistory(true);
+    }
+  });
+  figureFavourites.start();
 };
+
+var updatePresetLabel = function(){ if (figureFavourites) { figureFavourites.update(); } };
 
 // Repeat within what can be calculated, with a note when it is held back.
 var clampRepeat = function(){
@@ -713,20 +740,9 @@ var panelEvents = function(){
     figureChanged(true);
   });
   byId("randomTransforms").addEventListener("click", function(){
-    current_preset = -1;
+    if (figureFavourites) { figureFavourites.pick = null; }
     showSpaceTransforms(randomSpace());
     byId("repetition").value = 4;
-    figureChanged(true);
-    fitView();
-  });
-  var preset = byId("preset");
-  preset.addEventListener("change", function(){
-    var i = Number(preset.value);
-    if (!SPACE_PRESETS[i]) { return; }
-    current_preset = i;
-    showSpaceTransforms(SPACE_PRESETS[i].t);
-    byId("repetition").value = SPACE_PRESETS[i].repeat;
-    if (SPACE_PRESETS[i].dots) { byId("draw_mode").value = "dots"; }
     figureChanged(true);
     fitView();
   });
@@ -791,7 +807,6 @@ var panelEvents = function(){
     if (!state) { return; }
     history_index = e.state && typeof e.state.i === "number" ? e.state.i : 0;
     clearTimeout(history_timer);
-    current_preset = -1;
     applySpaceState(state);
     updateUndoButtons();
   });
@@ -806,13 +821,7 @@ var startSpacePage = function(){
     option.textContent = p.name;
     palette.appendChild(option);
   });
-  var preset = byId("preset");
-  SPACE_PRESETS.forEach(function(p, i){
-    var option = document.createElement("option");
-    option.value = i;
-    option.textContent = p.name;
-    preset.appendChild(option);
-  });
+  startFavourites3();
   // The colours used last time on this page.
   try {
     var kept = JSON.parse(localStorage.getItem("similar-fractal-3d.display"));
@@ -829,7 +838,6 @@ var startSpacePage = function(){
   if (state){
     applySpaceState(state);
   } else {
-    current_preset = 0;
     space.view.yaw = DEFAULT_VIEW.yaw;
     space.view.pitch = DEFAULT_VIEW.pitch;
     showSpaceTransforms(SPACE_PRESETS[0].t);

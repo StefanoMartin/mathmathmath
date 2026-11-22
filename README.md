@@ -12,6 +12,12 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
 
 ## What you can do
 
+The three pages – flat figures (`index.html`), figures in space (`3d.html`) and
+in four dimensions (`4d.html`) – are reached by the tabs 2D, 3D and 4D under
+the title. Every section of the side panel folds away when its title is
+clicked (or Enter is pressed on it), and each page remembers which ones are
+folded.
+
 - **Shape** – copy a square, line, triangle, circle, heart, star, hexagon,
   spiral or dot, or draw your own on a small pad.
 - **Transforms** – set the position, rotation, scale, stretch (height ÷ width),
@@ -52,7 +58,7 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
 
 ### Figures in 3D
 
-`3d.html` (linked from the main page as *3D figures*) does the same in space,
+`3d.html` (the *3D* tab) does the same in space,
 starting from a cube instead of a square.
 
 - **Generations** – Repeat (with − and +) copies the cube generation after
@@ -76,11 +82,14 @@ starting from a cube instead of a square.
   (the fern is drawn this way); zoomed in, they too land in the window.
 - **Presets** – Menger sponge, Sierpinski tetrahedron and pyramid, octahedron
   flake, cross of crosses, Cantor dust, a fern and a tree.
+- **Favourites** – as on the main page: save a figure under a name, with its
+  colours and the view; it is listed under Presets, can be deleted, and all
+  of them saved to a file and loaded back. The 3D page keeps its own list.
 - **Colouring, dimension, Random, undo, links and PNG** – as on the main page.
 
 ### Figures in 4D
 
-`4d.html` (linked from the other two pages as *4D figures*) goes one dimension
+`4d.html` (the *4D* tab) goes one dimension
 further: each transform copies the figure in X, Y, Z and a fourth direction, W.
 W cannot be seen, so the figure is shown moving through it, as an animation in
 3D.
@@ -115,10 +124,17 @@ W cannot be seen, so the figure is shown moving through it, as an animation in
   pausing at another angle through W lets a drag reach into W. H hides the
   frames.
 - **Presets** – the Sierpinski 5-cell (the 4D tetrahedron), the 4D Menger
-  sponge, a cross of crosses, Cantor dust and a tree branching into W.
+  sponge, a cross of crosses, Cantor dust, a tree branching into W, the 16-cell
+  flake (the 4D octahedron), the pyramid on a cube, triangle × triangle and
+  carpet × carpet (a Sierpinski figure in X and Y times another in Z and W),
+  Cantor dust with hearts, and the Clifford spiral (a double turn, in two
+  planes at once, which only 4D has).
 - **Colouring** by place in W, by transform, by depth or in one ink; the
   dimension; undo and redo; turning, moving and zooming the 3D view; links
   (with the figure) and PNG.
+- **Favourites** – as on the other pages, kept in a list of the 4D page's
+  own, with how the figure is shown (turning or sliced, the angle or the
+  slice, generations, colours and the view).
 
 ## Running it locally
 
@@ -164,10 +180,10 @@ npm run test:browser
 | `tests/e2e/app.spec.js` | The page on a desktop: everything a person does with it |
 | `tests/e2e/phone.spec.js` | The page on a phone: layout, pinch, two-finger move, dragging with a finger |
 | `tests/unit/space.test.js` | 3D: transforms in space, turns read back, generations of cubes, the camera and its fit, dragging frames, finding them, visible faces, random dots, links |
-| `tests/e2e/space.spec.js` | The 3D page on a desktop: generations, the panel, dragging frames and their dots, turning and zooming, random dots, links, Random, PNG |
+| `tests/e2e/space.spec.js` | The 3D page on a desktop: generations, the panel, dragging frames and their dots, turning and zooming, random dots, links, Random, PNG, favourites, the tabs, folding sections |
 | `tests/e2e/space-phone.spec.js` | The 3D page on a phone: layout, turning the view and dragging a frame with a finger, pinch |
 | `tests/unit/hyper.test.js` | 4D: turns in a plane, any turn split into six and back, transforms, fixed points, the presets' dimensions and bounds, generations of tesseracts, their outside and their cuts, dots turned and sliced, frames and dragging them, links |
-| `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset as copies and as dots both ways, generations and their options, the transform boxes, dragging frames, undo, Random, links, the view, the links between pages |
+| `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset as copies and as dots both ways, generations and their options, the transform boxes, dragging frames, undo, Random, links, the view, favourites, the tabs |
 | `tests/e2e/hyper-phone.spec.js` | The 4D page on a phone: layout, Play, turning with a finger, dragging a frame, pinch |
 
 ## Files
@@ -184,12 +200,14 @@ npm run test:browser
 | `javascript/colours.js` | Colour schemes, custom colours and line width |
 | `javascript/state.js` | The figure as a link, and undo/redo through the browser history |
 | `javascript/favourites.js` | Favourites (in the browser and as a file) and the Presets list |
+| `javascript/panel.js` | The side panel's sections folding away, on all three pages |
 | `javascript/drawing.js` | Drawing the figure from the panel, and the lighter drawing while dragging |
 | `javascript/export.js` | Saving the view as PNG or SVG |
 | `javascript/events.js` | What the panel's buttons, fields and keys do |
 | `javascript/gestures.js` | Mouse and touch on the figure: zoom, pan, pinch, dragging the frames |
 | `javascript/main.js` | Starts the page (loaded last) |
 | `3d.html` | The 3D page |
+| `javascript/keep.js` | Favourites and the Presets list of the 3D and 4D pages (each with its own list) |
 | `javascript/space.js` | The 3D engine: transforms in space, generations of cubes, solid and outline drawing, the frames, random dots, the camera |
 | `javascript/space-page.js` | The 3D page: presets, transform boxes, links and undo, dragging frames, turning and zooming the view |
 | `4d.html` | The 4D page |

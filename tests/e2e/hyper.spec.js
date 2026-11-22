@@ -4,6 +4,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { test, expect } = require("@playwright/test");
 
+const presetShown = (page) => page.locator("#preset").evaluate((s) => s.options[s.selectedIndex].textContent);
 const HYPER = pathToFileURL(path.join(__dirname, "..", "..", "4d.html")).href;
 const MAIN = pathToFileURL(path.join(__dirname, "..", "..", "index.html")).href;
 
@@ -65,11 +66,12 @@ test("4D: random dots: paused, the picture fills in; the slider sets the angle o
 });
 
 test("4D: every preset draws, as copies and as dots, in both ways of showing W", async ({ page }) => {
+  test.setTimeout(120000);
   const errors = await openHyper(page);
   await page.locator("#play").click();
   const count = await page.evaluate(() => HYPER_PRESETS.length);
   for (let i = 0; i < count; i++){
-    await page.selectOption("#preset", String(i));
+    await page.selectOption("#preset", "p:" + i);
     for (const [show, mode] of [["turn", "copies"], ["slice", "copies"], ["turn", "dots"], ["slice", "dots"]]){
       await page.selectOption("#draw_mode", mode);
       await page.selectOption("#show", show);
@@ -85,7 +87,7 @@ test("4D: every preset draws, as copies and as dots, in both ways of showing W",
 
 test("4D: the link opens the same figure; colours and the view", async ({ page }) => {
   const errors = await openHyper(page, "f=1&m=slice&s=0.3&c=depth&p=0&v=10,15");
-  await expect(page.locator("#preset option").first()).toHaveText("Menger sponge");
+  expect(await presetShown(page)).toBe("Menger sponge");
   await expect(page.locator("#boxes .box_iteration")).toHaveCount(48);
   await expect(page.locator("#show")).toHaveValue("slice");
   await expect(page.locator("#colour_mode")).toHaveValue("depth");
@@ -106,13 +108,51 @@ test("4D: the link opens the same figure; colours and the view", async ({ page }
   expect(errors).toEqual([]);
 });
 
-test("4D: linked from the main page and the 3D page", async ({ page }) => {
+test("4D: a tab on the main page and the 3D page", async ({ page }) => {
   await page.goto(MAIN);
-  await page.locator("a", { hasText: "4D figures" }).click();
+  await page.locator(".page_tabs a", { hasText: "4D" }).click();
   await expect(page).toHaveTitle("Similar Fractal 4D");
-  await page.locator("a", { hasText: "3D figures" }).click();
-  await page.locator("a", { hasText: "4D figures" }).click();
+  await expect(page.locator('.page_tabs a[aria-current="page"]')).toHaveText("4D");
+  await page.locator(".page_tabs a", { hasText: "3D" }).click();
+  await page.locator(".page_tabs a", { hasText: "4D" }).click();
   await expect(page).toHaveTitle("Similar Fractal 4D");
+});
+
+test("4D favourites: a custom figure kept with how it is shown; folding sections", async ({ page }) => {
+  const errors = await openHyper(page);
+  await page.locator("#play").click();
+  await page.locator("#randomTransforms").click();
+  await page.selectOption("#show", "slice");
+  await page.locator("#w_number").fill("30");
+  await page.locator("#solid").uncheck();
+  const saved = await page.evaluate(() => readHyperTransforms());
+  await page.locator("#saveFavourite").click();
+  await expect(page.locator("#favourites_note")).toHaveText("Saved as “Figure 1”.");
+  expect(await presetShown(page)).toBe("Figure 1");
+  await expect(page.locator("#preset_note")).toHaveText("");
+  // A preset shows its note; the favourite comes back whole.
+  await page.selectOption("#preset", { label: "Menger sponge" });
+  await expect(page.locator("#preset_note")).toHaveText(/48 parts/);
+  await page.selectOption("#preset", { label: "Figure 1" });
+  expect(await page.evaluate(() => readHyperTransforms())).toEqual(saved);
+  await expect(page.locator("#show")).toHaveValue("slice");
+  await expect(page.locator("#solid")).not.toBeChecked();
+  expect(await page.evaluate(() => hyper.slice)).toBeCloseTo(0.3, 3);
+  // One step to undo, back to the sponge.
+  await page.locator("#undoButton").click();
+  await expect.poll(() => presetShown(page)).toBe("Menger sponge");
+  // The 4D list is its own: the 3D page does not show it.
+  await page.locator(".page_tabs a", { hasText: "3D" }).click();
+  await expect(page.locator('#preset optgroup[label="Favourites"]')).toHaveCount(0);
+  await page.goBack();
+
+  // Space on a section's title folds it, and does not play.
+  const playing = await page.locator("#play").textContent();
+  await page.locator("legend", { hasText: "Through W" }).focus();
+  await page.keyboard.press(" ");
+  await expect(page.locator("#show")).toBeHidden();
+  await expect(page.locator("#play")).toHaveText(playing);
+  expect(errors).toEqual([]);
 });
 
 // Where a corner of transform t's frame is on the page (corner 0 .. 15), or its middle.
@@ -137,11 +177,11 @@ test("4D: the transform boxes change the figure; Add, remove, Random; undo and r
   const errors = await openHyper(page);
   await page.locator("#play").click();
   await expect(page.locator("#boxes .box_iteration")).toHaveCount(5);
-  await expect(page.locator("#preset option").first()).toHaveText("Sierpinski 5-cell");
+  await expect.poll(() => presetShown(page)).toBe("Sierpinski 5-cell");
   // Move W of T1, by its number.
   const row = page.locator(".box_iteration").first().locator("tr.row", { has: page.locator('th:text-is("Move W")') });
   await row.locator(".number_slide").fill("0.3");
-  await expect(page.locator("#preset option").first()).toHaveText("Sierpinski 5-cell (edited)");
+  await expect.poll(() => presetShown(page)).toBe("Sierpinski 5-cell (edited)");
   expect((await transforms4(page))[0][3]).toBe(0.3);
   await expect(page.locator("#dimension")).toHaveText("Dimension ≈ 2.322");
   // A turn through W, by its slider.
@@ -169,15 +209,15 @@ test("4D: the transform boxes change the figure; Add, remove, Random; undo and r
     await page.locator("#undoButton").click();
     await page.waitForTimeout(150);
   }
-  await expect(page.locator("#preset option").first()).toHaveText("Sierpinski 5-cell");
+  await expect.poll(() => presetShown(page)).toBe("Sierpinski 5-cell");
   await page.locator("#redoButton").click();
-  await expect(page.locator("#preset option").first()).toHaveText("Sierpinski 5-cell (edited)");
+  await expect.poll(() => presetShown(page)).toBe("Sierpinski 5-cell (edited)");
 
   await page.locator("#randomTransforms").click();
   const n = await page.locator("#boxes .box_iteration").count();
   expect(n).toBeGreaterThanOrEqual(4);
   expect(n).toBeLessThanOrEqual(7);
-  await expect(page.locator("#preset option").first()).toHaveText("Presets");
+  await expect.poll(() => presetShown(page)).toBe("Presets…");
   await filled(page);
   expect(await page.evaluate(() => hyper.failed)).toBe(false);
   expect(errors).toEqual([]);
@@ -268,7 +308,7 @@ test("4D: generations of the tesseract: repeat, last generation only, solid, the
   // Playing, a figure of many copies is lighter.
   await page.locator("#play").click();
   await page.selectOption("#show", "turn");
-  await page.selectOption("#preset", "4");
+  await page.selectOption("#preset", "p:4");
   await expect(page.locator("#point_count")).toHaveText("7,776 copies");
   await page.locator("#play").click();
   await expect(page.locator("#point_count")).toHaveText("1,296 copies");

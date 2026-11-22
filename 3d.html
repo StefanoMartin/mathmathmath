@@ -12,16 +12,22 @@
     <script src="javascript/fractal.js"></script>
     <script src="javascript/basics.js"></script>
     <script src="javascript/space.js"></script>
+    <script src="javascript/panel.js"></script>
+    <script src="javascript/keep.js"></script>
     <script src="javascript/space-page.js"></script>
   </head>
 
   <body class="space_page">
     <div id="panel">
       <h1>Similar Fractal 3D</h1>
+      <nav class="page_tabs" aria-label="Pages">
+        <a href="index.html" title="Flat figures, from a shape">2D</a>
+        <a href="3d.html" aria-current="page" title="Figures in space, from a cube">3D</a>
+        <a href="4d.html" title="Figures in four dimensions, from a tesseract">4D</a>
+      </nav>
       <p class="intro">
         A cube is copied by each transform below: moved, turned and shrunk.
         The copies are copied again, generation after generation.
-        <a href="index.html">Flat figures</a> &middot; <a href="4d.html">4D figures</a>
       </p>
 
       <fieldset>
@@ -55,9 +61,7 @@
       <fieldset>
         <legend>Transforms</legend>
         <p class="preset">
-          <select id="preset" title="Classic figures in space">
-            <option value="" disabled selected hidden>Presets</option>
-          </select>
+          <select id="preset" title="Classic figures in space"></select><button type="button" id="deleteFavourite" title="Delete this favourite" hidden>Delete</button>
         </p>
         <div id="boxes" class="boxes"></div>
         <p class="buttons">
@@ -105,6 +109,21 @@
         <p class="hint">
           <span class="for_mouse">Drag the paper around the figure to turn it, Shift-drag to move it, scroll (or + and &minus;) to zoom. H hides the frames.</span>
           <span class="for_touch">Drag the paper around the figure to turn it, pinch to zoom, drag with two fingers to move it.</span>
+        </p>
+      </fieldset>
+      <fieldset>
+        <legend>Save</legend>
+        <p class="save_label">Favourites</p>
+        <p class="favourite_save">
+          <input type="text" id="favourite_name" placeholder="Name" maxlength="40"
+            title="A name for the current figure"><button type="button" id="saveFavourite"
+            title="Keep the current figure, its colours and the view">Save</button>
+        </p>
+        <p id="favourites_note" class="hint"></p>
+        <p class="buttons">
+          <button type="button" id="favouritesToFile" title="Save all favourites as one file">Save to file</button>
+          <button type="button" id="favouritesFromFile" title="Add the favourites of a file to this list">Load from file</button>
+          <input type="file" id="favourites_file" accept=".json,application/json" hidden>
         </p>
         <p class="buttons">
           <button type="button" id="savePng" title="Save the current view as a picture">Save PNG</button>

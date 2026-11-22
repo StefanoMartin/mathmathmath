@@ -56,13 +56,25 @@ test("the presets: their dimensions", () => {
     H.set_transforms(preset(name));
     assert.ok(close(H.dimension(), D, 1e-6), name + " " + H.dimension());
   }
+  const more = { "16-cell flake": 3, "Pyramid on a cube": Math.log(9) / Math.log(2), "Triangle × triangle": 2 * Math.log(3) / Math.log(2),
+                 "Carpet × carpet": 2 * Math.log(8) / Math.log(3), "Cantor dust with hearts": Math.log(17) / Math.log(3) };
+  for (const [name, D] of Object.entries(more)){
+    H.set_transforms(preset(name));
+    assert.ok(close(H.dimension(), D, 1e-6), name + " " + H.dimension());
+  }
   assert.equal(preset("Menger sponge").length, 48);
+  assert.equal(preset("Carpet × carpet").length, 64);
   assert.equal(preset("Cantor dust").length, 16);
   H.set_transforms([{ move: [0, 0, 0, 0], size: [1, 0.5, 0.5, 0.5] }, { move: [0.5, 0, 0, 0], size: [0.5, 0.5, 0.5, 0.5] }]);
   assert.equal(H.dimension(), Infinity);
 });
 
-test("the figure's box: the 5-cell spans its corners, in the unit tesseract; the tree has a 4D spread", () => {
+test("every preset stays in the unit tesseract; the 5-cell spans its corners; the tree has a 4D spread", () => {
+  for (const p of app.HYPER_PRESETS){
+    H.set_transforms(p.t);
+    const b = plain(H.box);
+    for (let a = 0; a < 4; a++){ assert.ok(b.min[a] > -0.05 && b.max[a] < 1.05, p.name + " axis " + a); }
+  }
   H.set_transforms(preset("Sierpinski 5-cell"));
   const b = plain(H.box), corners = plain(app.FIVE_CELL);
   for (let a = 0; a < 4; a++){
@@ -329,4 +341,20 @@ test("solid copies: the outside of the tesseract as seen, and the cuts of a slic
   assert.equal(ctx.fills, 0);
   assert.equal(H.drawn, 1);
   H.solid = true;
+});
+
+test("favourites (keep.js): only good entries are kept, as a link would be", () => {
+  const keep = app.makeFavourites({ valid: (link) => app.decodeHyperState("#" + link) !== null });
+  const good = "r=2&t=0,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5";
+  const list = plain(keep.clean([
+    { name: "  Mine  ", link: good },
+    { name: "x".repeat(60), link: good },
+    { name: "", link: good },
+    { name: "No figure", link: "m=slice" },
+    { name: "Broken", link: "t=1,2,3" },
+    { name: 5, link: good },
+    null
+  ]));
+  assert.deepEqual(list.map((f) => f.name), ["Mine", "x".repeat(40)]);
+  assert.deepEqual(plain(keep.clean({ favourites: [] })), []);
 });

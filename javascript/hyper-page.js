@@ -52,6 +52,54 @@ var tree4 = function(){
   return out;
 };
 
+// Half-size copies at the given corners (in the unit tesseract): each copy
+// sits at its corner, as in the Sierpinski triangle.
+var halfwayTo = function(corners){
+  return corners.map(function(v){ return { move: v.map(function(c){ return c / 2; }), size: same4(0.5) }; });
+};
+
+// The 16-cell (the 4D octahedron): the middles of the tesseract's eight cells.
+var SIXTEEN_CELL = [0, 1, 2, 3].reduce(function(out, axis){
+  [0, 1].forEach(function(v){
+    var p = [0.5, 0.5, 0.5, 0.5];
+    p[axis] = v;
+    out.push(p);
+  });
+  return out;
+}, []);
+
+// The 4D pyramid on a cube: the cube's eight corners at W = 0, the top in the middle at W = 1.
+var CUBE_PYRAMID = (function(){
+  var out = [];
+  for (var i = 0; i < 8; i++) { out.push([i & 1, (i >> 1) & 1, (i >> 2) & 1, 0]); }
+  out.push([0.5, 0.5, 0.5, 1]);
+  return out;
+})();
+
+// The Sierpinski triangle in X and Y, times the Sierpinski triangle in Z and W:
+// a figure that only fits in four dimensions (nine copies, half the size).
+var triangleTimesTriangle = function(){
+  var tri = [[0, 0], [1, 0], [0.5, 1]], out = [];
+  tri.forEach(function(a){ tri.forEach(function(b){ out.push([a[0], a[1], b[0], b[1]]); }); });
+  return halfwayTo(out);
+};
+
+// The Sierpinski carpet in X and Y times the carpet in Z and W: copies a
+// third the size where neither pair is in the middle (64 of them).
+var carpetTimesCarpet = function(){
+  return gridOfThirds4(function(middles, d){ return !(d[0] === 1 && d[1] === 1) && !(d[2] === 1 && d[3] === 1); });
+};
+
+// A copy turned and shrunk about a point c (it stays where it is).
+var aboutPoint4 = function(c, size, turns){
+  var t = { move: [0, 0, 0, 0], size: same4(size), turns: turns };
+  var M = hyperMap(t);
+  t.move = [0, 1, 2, 3].map(function(r){
+    return roundTo(c[r] - (M[4 * r] * c[0] + M[4 * r + 1] * c[1] + M[4 * r + 2] * c[2] + M[4 * r + 3] * c[3]), 6);
+  });
+  return t;
+};
+
 var HYPER_PRESETS = [
   { name: "Sierpinski 5-cell", repeat: 5, note: "Five half-size copies at the corners of the 5-cell, the 4D tetrahedron (squeezed a little in W to fit the tesseract). Each slice is a tetrahedron-like Sierpinski figure.",
     t: FIVE_CELL.map(function(v){ return { move: v.map(function(c){ return c / 2; }), size: same4(0.5) }; }) },
@@ -62,7 +110,20 @@ var HYPER_PRESETS = [
   { name: "Cantor dust", repeat: 3, note: "The sixteen corners of the tesseract, a third the size.",
     t: gridOfThirds4(function(middles){ return middles === 0; }) },
   { name: "Tree", repeat: 5, note: "A trunk, its top turned a little, and four branches leaning out into X, Z and W.",
-    t: tree4() }
+    t: tree4() },
+  { name: "16-cell flake", repeat: 4, note: "Eight half-size copies at the corners of the 16-cell, the 4D octahedron: the middles of the tesseract's eight cubes.",
+    t: halfwayTo(SIXTEEN_CELL) },
+  { name: "Pyramid on a cube", repeat: 4, note: "The 4D pyramid: a cube at the bottom in W and a point at the top. Nine half-size copies, at its corners.",
+    t: halfwayTo(CUBE_PYRAMID) },
+  { name: "Triangle × triangle", repeat: 4, note: "The Sierpinski triangle in X and Y, times another in Z and W: a figure that only fits in four dimensions. Its slices are rows of triangles.",
+    t: triangleTimesTriangle() },
+  { name: "Carpet × carpet", repeat: 2, note: "The Sierpinski carpet in X and Y, times another in Z and W: 64 copies a third the size.",
+    t: carpetTimesCarpet() },
+  { name: "Cantor dust with hearts", repeat: 3, note: "The sixteen corners of the tesseract and its middle, a third the size: each piece of dust has a heart.",
+    t: gridOfThirds4(function(middles){ return middles === 0 || middles === 4; }) },
+  { name: "Clifford spiral", repeat: 12, dots: true, note: "A copy turned in X with Y and, at the same time, in Z with W (a double turn, which only 4D has), and a small one that it spins round into a spiral of curls.",
+    t: [aboutPoint4([0.5, 0.5, 0.5, 0.5], 0.86, [["xy", 24], ["zw", 24]]),
+        { move: [0.64, 0.02, 0.33, 0.33], size: same4(0.33) }] }
 ];
 
 var COLOURINGS4 = ["w", "transform", "depth", "ink"];
@@ -208,7 +269,6 @@ var randomHyper = function(){
 var playing = true;
 var slice_phase = 0.5;     // the slice sweeps there and back: phase 0 .. 2
 var speed = 1;
-var current_preset = -1;
 
 var compactTransform4 = function(t){
   t = transformArray4(t);
@@ -357,25 +417,41 @@ var updateUndoButtons4 = function(){
 
 // ---- Showing the panel ----
 
-// The preset list shows the figure's name when it is one of them, marked
-// when it was changed since.
-var updatePresetLabel4 = function(){
-  var select = byId("preset"), placeholder = select.options[0];
-  var now = JSON.stringify(readHyperTransforms().map(compactTransform4));
-  var match = -1;
-  HYPER_PRESETS.forEach(function(p, i){
-    if (match < 0 && JSON.stringify(p.t.map(compactTransform4)) === now) { match = i; }
+// The Presets list, with the favourites saved in this browser (keep.js). A
+// classic figure, while unchanged, has its note shown under the list.
+var figureFavourites = null;
+var hyperFigureKey = function(list){ return JSON.stringify(list.map(compactTransform4)); };
+var preset_keys4 = [];
+
+var startFavourites4 = function(){
+  figureFavourites = makeFavourites({
+    storeKey: "similar-fractal-4d.favourites",
+    fileName: "similar-fractal-4d-favourites.json",
+    app: "similar-fractal-4d",
+    presets: HYPER_PRESETS,
+    link: function(){ return encodeHyperState(readHyperState()); },
+    valid: function(link){ return decodeHyperState("#" + link) !== null; },
+    figureKey: function(){ return hyperFigureKey(readHyperTransforms()); },
+    presetKey: function(i){
+      if (preset_keys4[i] === undefined) { preset_keys4[i] = hyperFigureKey(HYPER_PRESETS[i].t); }
+      return preset_keys4[i];
+    },
+    // A pick from the list is a step to undo of its own, at once.
+    showPreset: function(i){ showPreset(i); fitView4(); saveHistoryNow(true); },
+    showLink: function(link){
+      hyper.need_fit = true;
+      hyper.view.zoom = 1; hyper.view.pan_x = 0; hyper.view.pan_y = 0;
+      applyHyperState(decodeHyperState("#" + link));
+      saveHistoryNow(true);
+    },
+    onUpdate: function(pick, same){
+      byId("preset_note").textContent = pick && same && pick.kind === "p" ? HYPER_PRESETS[pick.index].note : "";
+    }
   });
-  if (match >= 0) { current_preset = match; }
-  if (current_preset < 0){
-    placeholder.textContent = "Presets";
-    byId("preset_note").textContent = "";
-  } else {
-    placeholder.textContent = HYPER_PRESETS[current_preset].name + (match >= 0 ? "" : " (edited)");
-    byId("preset_note").textContent = match >= 0 ? HYPER_PRESETS[current_preset].note : "";
-  }
-  select.value = "";
+  figureFavourites.start();
 };
+
+var updatePresetLabel4 = function(){ if (figureFavourites) { figureFavourites.update(); } };
 
 // The figure changed (push: as a step that can be undone).
 // Repeat within what can be drawn, with a note when it is held back.
@@ -413,10 +489,11 @@ var figureChanged = function(push){
 };
 
 var showPreset = function(i){
-  current_preset = i;
   hyper.need_fit = true;
   showHyperTransforms(HYPER_PRESETS[i].t);
   byId("repetition").value = HYPER_PRESETS[i].repeat;
+  // Some are drawn best with dots.
+  if (HYPER_PRESETS[i].dots) { byId("draw_mode").value = "dots"; }
   figureChanged(true);
 };
 
@@ -745,18 +822,11 @@ var panelEvents4 = function(){
     figureChanged(true);
   });
   byId("randomTransforms").addEventListener("click", function(){
-    current_preset = -1;
+    if (figureFavourites) { figureFavourites.pick = null; }
     hyper.need_fit = true;
     showHyperTransforms(randomHyper());
     byId("repetition").value = 3;
     figureChanged(true);
-    fitView4();
-  });
-  var preset = byId("preset");
-  preset.addEventListener("change", function(){
-    var i = Number(preset.value);
-    if (!HYPER_PRESETS[i]) { return; }
-    showPreset(i);
     fitView4();
   });
 
@@ -851,18 +921,14 @@ var panelEvents4 = function(){
 };
 
 var startHyperPage = function(){
-  var palette = byId("palette"), preset = byId("preset");
+  var palette = byId("palette");
   PALETTES.forEach(function(p, i){
     var option = document.createElement("option");
     option.value = i; option.textContent = p.name;
     palette.appendChild(option);
   });
-  HYPER_PRESETS.forEach(function(p, i){
-    var option = document.createElement("option");
-    option.value = i; option.textContent = p.name;
-    preset.appendChild(option);
-  });
   palette.value = "0";
+  startFavourites4();
   panelEvents4();
   hyperGestures();
 

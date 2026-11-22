@@ -4,6 +4,7 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { test, expect } = require("@playwright/test");
 
+const presetShown = (page) => page.locator("#preset").evaluate((s) => s.options[s.selectedIndex].textContent);
 const SPACE = pathToFileURL(path.join(__dirname, "..", "..", "3d.html")).href;
 
 // Everything drawn: no redraw waiting, and with random dots all placed.
@@ -24,7 +25,7 @@ async function openSpace(page, hash){
 }
 const pickPreset = async (page, name) => {
   const i = await page.evaluate((n) => SPACE_PRESETS.findIndex((p) => p.name === n), name);
-  await page.selectOption("#preset", String(i));
+  await page.selectOption("#preset", "p:" + i);
   await finished(page);
 };
 // Where a point of the figure is on the page.
@@ -51,7 +52,7 @@ async function drag(page, from, to){
 
 test("opens on the Menger sponge: a cube copied three times, with the frames of the transforms", async ({ page }) => {
   const errors = await openSpace(page);
-  await expect(page.locator("#preset option").first()).toHaveText("Menger sponge");
+  expect(await presetShown(page)).toBe("Menger sponge");
   await expect(page.locator(".box_iteration")).toHaveCount(20);
   await expect(page.locator("#point_count")).toHaveText("8,000 cubes");
   await expect(page.locator("#dimension")).toHaveText("Dimension ≈ 2.727");
@@ -257,12 +258,93 @@ test("Random, Add, and saving a picture", async ({ page }, info) => {
   expect(errors).toEqual([]);
 });
 
-test("the two pages link to each other", async ({ page }) => {
+test("the tabs go from page to page; the current one is marked", async ({ page }) => {
   await openSpace(page);
-  await page.click("text=Flat figures");
+  await expect(page.locator('.page_tabs a[aria-current="page"]')).toHaveText("3D");
+  await page.locator(".page_tabs a", { hasText: "2D" }).click();
   await expect(page).toHaveTitle("Similar Fractal");
-  await page.click("text=3D figures");
+  await expect(page.locator('.page_tabs a[aria-current="page"]')).toHaveText("2D");
+  await page.locator(".page_tabs a", { hasText: "3D" }).click();
   await expect(page).toHaveTitle("Similar Fractal 3D");
+});
+
+test("3D favourites: saved with the colours and the view, listed under Presets, to and from a file", async ({ page }, info) => {
+  const errors = await openSpace(page);
+  await expect(page.locator("#favourites_note")).toHaveText(/Nothing saved yet/);
+  // An edited figure, other colours and view, kept under a name.
+  await pickPreset(page, "Sierpinski tetrahedron");
+  await row(page, 0, "Move X").locator(".number_slide").fill("0.1");
+  await page.selectOption("#colour_mode", "transform");
+  await page.locator("#viewTop").click();
+  await finished(page);
+  const saved = await transforms(page);
+  await page.locator("#favourite_name").fill("Leaning tetrahedron");
+  await page.locator("#favourite_name").press("Enter");
+  await expect(page.locator("#favourites_note")).toHaveText("Saved as “Leaning tetrahedron”.");
+  expect(await presetShown(page)).toBe("Leaning tetrahedron");
+  await expect(page.locator("#deleteFavourite")).toBeVisible();
+  await expect(page.locator('#preset optgroup[label="Favourites"] option')).toHaveText(["Leaning tetrahedron"]);
+  // Something else, then the favourite again: all of it comes back.
+  await pickPreset(page, "Menger sponge");
+  await page.selectOption("#colour_mode", "generation");
+  await page.locator("#viewFront").click();
+  await expect(page.locator("#deleteFavourite")).toBeHidden();
+  await page.selectOption("#preset", { label: "Leaning tetrahedron" });
+  await finished(page);
+  expect(await transforms(page)).toEqual(saved);
+  await expect(page.locator("#colour_mode")).toHaveValue("transform");
+  expect(await page.evaluate(() => space.view.pitch)).toBe(90);
+  // Edited: marked, and picking it again puts it back.
+  await row(page, 0, "Move Y").locator(".number_slide").fill("0.2");
+  expect(await presetShown(page)).toBe("Leaning tetrahedron (edited)");
+  await page.selectOption("#preset", { label: "Leaning tetrahedron" });
+  expect(await transforms(page)).toEqual(saved);
+  // Kept in this browser.
+  await page.reload();
+  await expect(page.locator('#preset optgroup[label="Favourites"] option')).toHaveText(["Leaning tetrahedron"]);
+
+  // To a file, deleted, and back from the file.
+  const download = page.waitForEvent("download");
+  await page.locator("#favouritesToFile").click();
+  const file = info.outputPath("favourites-3d.json");
+  await (await download).saveAs(file);
+  const data = JSON.parse(require("node:fs").readFileSync(file, "utf8"));
+  expect(data.app).toBe("similar-fractal-3d");
+  expect(data.favourites.map((f) => f.name)).toEqual(["Leaning tetrahedron"]);
+  await page.selectOption("#preset", { label: "Leaning tetrahedron" });
+  page.once("dialog", (d) => d.accept());
+  await page.locator("#deleteFavourite").click();
+  await expect(page.locator("#favourites_note")).toHaveText("Deleted “Leaning tetrahedron”.");
+  await expect(page.locator('#preset optgroup[label="Favourites"]')).toHaveCount(0);
+  await page.locator("#favourites_file").setInputFiles(file);
+  await expect(page.locator("#favourites_note")).toHaveText("1 favourite loaded.");
+  await expect(page.locator('#preset optgroup[label="Favourites"] option')).toHaveText(["Leaning tetrahedron"]);
+  // A broken file, or one from another page, adds nothing.
+  const other = info.outputPath("other.json");
+  require("node:fs").writeFileSync(other, JSON.stringify({ app: "similar-fractal-4d", favourites: [{ name: "x", link: "m=turn" }] }));
+  await page.locator("#favourites_file").setInputFiles(other);
+  await expect(page.locator("#favourites_note")).toHaveText("That file holds favourites of another page.");
+  expect(errors).toEqual([]);
+});
+
+test("sections fold away and stay folded on that page", async ({ page }) => {
+  await openSpace(page);
+  const display = page.locator("fieldset", { has: page.locator("legend", { hasText: "Display" }) });
+  await expect(display.locator("#colour_mode")).toBeVisible();
+  await display.locator("legend").click();
+  await expect(display).toHaveClass(/folded/);
+  await expect(display.locator("#colour_mode")).toBeHidden();
+  await expect(display.locator("legend")).toHaveAttribute("aria-expanded", "false");
+  await page.reload();
+  await expect(page.locator("#colour_mode")).toBeHidden();
+  // By keyboard too.
+  await page.locator("legend", { hasText: "Display" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#colour_mode")).toBeVisible();
+  // Each page keeps its own.
+  await page.locator("legend", { hasText: "Generations" }).click();
+  await page.locator(".page_tabs a", { hasText: "2D" }).click();
+  await expect(page.locator("#repetition")).toBeVisible();
 });
 
 

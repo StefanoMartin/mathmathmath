@@ -27,12 +27,51 @@ body {
 }
 
 h1 {
-  margin: 0 0 6px;
-  padding-bottom: 4px;
+  margin: 0 0 8px;
   font-size: 22px;
   font-weight: normal;
   letter-spacing: 0.02em;
+}
+
+/* ---- The pages, as tabs standing on a rule: 2D, 3D, 4D ---- */
+
+.page_tabs {
+  display: flex;
+  margin: 0 0 10px;
+  padding-left: 6px;
   border-bottom: 1px solid #222;
+}
+
+.page_tabs a {
+  position: relative;
+  bottom: -1px;            /* the current tab covers the rule below it */
+  margin-right: 4px;
+  padding: 2px 14px 1px;
+  border: 1px solid #8c8676;
+  border-bottom-color: #222;
+  background: #ddd7c7;
+  color: #5c574b;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+.page_tabs a:hover {
+  background: #e4dfd0;
+  color: #222;
+}
+
+.page_tabs a[aria-current="page"] {
+  border-color: #222;
+  border-bottom-color: #e9e4d6;
+  background: #e9e4d6;
+  color: #222;
+  cursor: default;
+}
+
+.page_tabs a:focus-visible {
+  outline: 1px dotted #222;
+  outline-offset: -4px;
 }
 
 .intro {
@@ -52,6 +91,45 @@ legend {
   padding: 0 4px;
   font-variant: small-caps;
   letter-spacing: 0.05em;
+}
+
+/* A section folds away when its title is clicked (panel.js). */
+#panel legend[role="button"] {
+  cursor: pointer;
+  user-select: none;
+}
+
+#panel legend[role="button"]::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin: 0 6px 1px 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid #6b6557;
+  vertical-align: middle;
+  transition: transform 0.12s;
+}
+
+#panel legend[role="button"]:hover::before {
+  border-top-color: #222;
+}
+
+#panel legend[role="button"]:focus-visible {
+  outline: 1px dotted #222;
+}
+
+fieldset.folded {
+  padding-bottom: 0;
+}
+
+fieldset.folded > legend::before {
+  transform: rotate(-90deg);
+}
+
+fieldset.folded > :not(legend) {
+  display: none !important;
 }
 
 label {

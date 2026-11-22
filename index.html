@@ -20,16 +20,21 @@
     <script src="javascript/export.js"></script>
     <script src="javascript/events.js"></script>
     <script src="javascript/gestures.js"></script>
+    <script src="javascript/panel.js"></script>
     <script src="javascript/main.js"></script>
   </head>
 
   <body>
     <div id="panel">
       <h1>Similar Fractal</h1>
+      <nav class="page_tabs" aria-label="Pages">
+        <a href="index.html" aria-current="page" title="Flat figures, from a shape">2D</a>
+        <a href="3d.html" title="Figures in space, from a cube">3D</a>
+        <a href="4d.html" title="Figures in four dimensions, from a tesseract">4D</a>
+      </nav>
       <p class="intro">
         A shape is copied by each transform below: moved, turned and
         shrunk. The copies are copied again, generation after generation.
-        <a href="3d.html">3D figures</a> &middot; <a href="4d.html">4D figures</a>
       </p>
 
       <fieldset>

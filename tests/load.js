@@ -14,10 +14,10 @@ const FILES = [
 ];
 
 // The scripts of the 3D page (3d.html), without the one that starts it.
-const SPACE_FILES = ["fractal.js", "basics.js", "space.js", "space-page.js"];
+const SPACE_FILES = ["fractal.js", "basics.js", "space.js", "keep.js", "space-page.js"];
 
 // The scripts of the 4D page (4d.html).
-const HYPER_FILES = ["fractal.js", "basics.js", "space.js", "hyper.js", "hyper-page.js"];
+const HYPER_FILES = ["fractal.js", "basics.js", "space.js", "hyper.js", "keep.js", "hyper-page.js"];
 
 // A fresh copy of the app (or of the given scripts): every test file gets its
 // own, so they cannot affect each other.
