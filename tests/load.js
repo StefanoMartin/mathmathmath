@@ -16,6 +16,9 @@ const FILES = [
 // The scripts of the 3D page (3d.html), without the one that starts it.
 const SPACE_FILES = ["fractal.js", "basics.js", "space.js", "space-page.js"];
 
+// The scripts of the 4D page (4d.html).
+const HYPER_FILES = ["fractal.js", "basics.js", "space.js", "hyper.js", "hyper-page.js"];
+
 // A fresh copy of the app (or of the given scripts): every test file gets its
 // own, so they cannot affect each other.
 function loadApp(files = FILES){
@@ -48,4 +51,4 @@ function loadApp(files = FILES){
 // assertions would see as different: compare plain copies instead.
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
-module.exports = { loadApp, plain, ROOT, SPACE_FILES };
+module.exports = { loadApp, plain, ROOT, SPACE_FILES, HYPER_FILES };

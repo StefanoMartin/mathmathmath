@@ -916,7 +916,9 @@ var space = {
   paint_frames: function(ctx, dpr){
     var cam = this.cam;
     if (!cam || !this.show_handles) { return; }
-    var xs = new Float64Array(8), ys = new Float64Array(8), zs = new Float64Array(8);
+    // Cubes here; the 4D page draws tesseracts with the same code.
+    var N = this.frame_points || 8, E = this.frame_edges || CUBE_EDGES;
+    var xs = new Float64Array(N), ys = new Float64Array(N), zs = new Float64Array(N);
     var order = [];
     for (var t = 0; t < this.n; t++){ if (t !== this.hover_index) { order.push(t); } }
     if (this.hover_index >= 0 && this.hover_index < this.n) { order.push(this.hover_index); }
@@ -929,9 +931,9 @@ var space = {
       var ink = this.colour_mode === "transform" ? transformColour(t, this.n) : HANDLE_INK;
       var edges = function(){
         ctx.beginPath();
-        for (var e = 0; e < 24; e += 2){
-          ctx.moveTo(xs[CUBE_EDGES[e]], ys[CUBE_EDGES[e]]);
-          ctx.lineTo(xs[CUBE_EDGES[e + 1]], ys[CUBE_EDGES[e + 1]]);
+        for (var e = 0; e < E.length; e += 2){
+          ctx.moveTo(xs[E[e]], ys[E[e]]);
+          ctx.lineTo(xs[E[e + 1]], ys[E[e + 1]]);
         }
       };
       if (on){
@@ -980,7 +982,7 @@ var space = {
 
       // Its name in the middle, and on the highlighted frame what each dot does.
       var mx = 0, my = 0;
-      for (var k = 0; k < 8; k++) { mx += xs[k] / 8; my += ys[k] / 8; }
+      for (var k = 0; k < N; k++) { mx += xs[k] / N; my += ys[k] / N; }
       if (!on && this.n > 8) { continue; }
       ctx.font = (on ? "bold " : "") + (13 * dpr) + "px Georgia, 'Times New Roman', serif";
       ctx.lineWidth = 4 * dpr;
@@ -1015,7 +1017,8 @@ var space = {
     if (!cam || !this.show_handles) { return null; }
     slop = slop || 0;
     var dpr = this.dpr || 1, X = mx * dpr, Y = my * dpr;
-    var xs = new Float64Array(8), ys = new Float64Array(8), zs = new Float64Array(8);
+    var N = this.frame_points || 8;
+    var xs = new Float64Array(N), ys = new Float64Array(N), zs = new Float64Array(N);
     var dot = null, dot_gap = Infinity, best = null, best_gap = Infinity, best_area = Infinity;
     for (var t = 0; t < this.n; t++){
       if (!this.frame(t, cam, xs, ys, zs)) { continue; }

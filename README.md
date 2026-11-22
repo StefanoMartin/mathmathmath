@@ -78,6 +78,39 @@ starting from a cube instead of a square.
   flake, cross of crosses, Cantor dust, a fern and a tree.
 - **Colouring, dimension, Random, undo, links and PNG** – as on the main page.
 
+### Figures in 4D
+
+`4d.html` (linked from the other two pages as *4D figures*) goes one dimension
+further: each transform copies the figure in X, Y, Z and a fourth direction, W.
+W cannot be seen, so the figure is shown moving through it, as an animation in
+3D, drawn with random dots.
+
+- **Turning through W** – the figure turns in a plane that mixes W with X, Y or
+  Z, and is seen along W in perspective: the parts further in W look smaller,
+  so the figure seems to turn inside out, the way a tesseract does in drawings.
+- **Slices along W** – only the part of the figure near one value of W is
+  shown, a 3D cross-section, and that value moves from one side to the other
+  and back.
+- **Play** – it plays on opening; Pause (or Space) stops it and fills the
+  picture in with many more dots. The Angle or Slice slider sets the moment by
+  hand, and Speed sets how fast it plays.
+- **Transforms** – each moves the figure (Move X, Y, Z, W), turns it in the six
+  planes of 4D space (XY, XZ, YZ as in 3D; XW, YW, ZW through the fourth
+  direction) and resizes it, with one size for all sides or a size along
+  each; it can also be mirrored. Add, remove and Random as on the other pages;
+  the Presets list names the figure and marks it *(edited)* once changed.
+- **On the figure** – paused, each transform's frame (its copy of the
+  tesseract, seen as the dots are) is drawn in green: drag it to move it,
+  its round dot to turn and resize it (the dot stays under the pointer), and
+  its square dot to tilt it. The moves and turns are in what is seen now, so
+  pausing at another angle through W lets a drag reach into W. H hides the
+  frames.
+- **Presets** – the Sierpinski 5-cell (the 4D tetrahedron), the 4D Menger
+  sponge, a cross of crosses, Cantor dust and a tree branching into W.
+- **Colouring** by depth in W, by transform, by depth or in one ink; the
+  dimension; undo and redo; turning, moving and zooming the 3D view; links
+  (with the figure) and PNG.
+
 ## Running it locally
 
 There is nothing to install or build: open `index.html` in a browser.
@@ -124,6 +157,9 @@ npm run test:browser
 | `tests/unit/space.test.js` | 3D: transforms in space, turns read back, generations of cubes, the camera and its fit, dragging frames, finding them, visible faces, random dots, links |
 | `tests/e2e/space.spec.js` | The 3D page on a desktop: generations, the panel, dragging frames and their dots, turning and zooming, random dots, links, Random, PNG |
 | `tests/e2e/space-phone.spec.js` | The 3D page on a phone: layout, turning the view and dragging a frame with a finger, pinch |
+| `tests/unit/hyper.test.js` | 4D: turns in a plane, any turn split into six and back, transforms, fixed points, the presets' dimensions and bounds, turning and slicing, frames and dragging them, links |
+| `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset both ways, the transform boxes, dragging frames, undo, Random, links, the view, the links between pages |
+| `tests/e2e/hyper-phone.spec.js` | The 4D page on a phone: layout, Play, turning with a finger, dragging a frame, pinch |
 
 ## Files
 
@@ -147,6 +183,9 @@ npm run test:browser
 | `3d.html` | The 3D page |
 | `javascript/space.js` | The 3D engine: transforms in space, generations of cubes, solid and outline drawing, the frames, random dots, the camera |
 | `javascript/space-page.js` | The 3D page: presets, transform boxes, links and undo, dragging frames, turning and zooming the view |
+| `4d.html` | The 4D page |
+| `javascript/hyper.js` | The 4D engine: transforms in four dimensions, random dots turned through W or sliced along it, then drawn with the 3D camera; the frames and dragging them |
+| `javascript/hyper-page.js` | The 4D page: presets, transform boxes, playing the animation, links and undo, dragging frames, colours and the view |
 
 ## How it works
 
