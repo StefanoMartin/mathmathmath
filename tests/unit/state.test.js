@@ -84,7 +84,7 @@ test("bad or broken links are refused or cleaned", () => {
 test("custom shapes are clamped into the square and limited in size", () => {
   const c = app.validCustom({ points: [[-1, 0.5], [2, 3], [0.12345, 0.5], ["x", 1]], closed: false });
   assert.deepEqual(plain(c), { points: [[0, 0.5], [1, 1], [0.123, 0.5]], closed: false });
-  const big = app.validCustom({ points: Array(100).fill([0.5, 0.5]) });
+  const big = app.validCustom({ points: Array(app.MAX_SHAPE_POINTS + 50).fill([0.5, 0.5]) });
   assert.equal(big.points.length, app.MAX_SHAPE_POINTS);
   assert.equal(big.closed, true);
   assert.equal(app.validCustom(null), null);

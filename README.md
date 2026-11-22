@@ -40,7 +40,8 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
   when the copies do not overlap).
 - **Presets** – Pythagoras tree, Lévy C curve, dragon curve, Koch curve,
   Sierpinski triangle and arrowhead, Vicsek cross, Barnsley fern, maple leaf,
-  a tree of hearts and more.
+  a tree of hearts, a taiji drawn as lines with a smaller taiji in each eye,
+  and more.
 - **Favourites** – save the figures you like (with their colours), find them
   again in the Presets list, and move them between browsers with *Save to file* / *Load from file*.
 - **Undo** – every change can be undone and redone with the ↶ ↷ buttons on
@@ -67,8 +68,12 @@ starting from a cube instead of a square.
   to move it, its round dot to turn and resize it, and its square dot to tilt
   it. Drag the paper around the figure to turn the view, Shift-drag (or two
   fingers) to move it, scroll or pinch to zoom; H hides the frames.
+- **Zoom** – as on the main page, zooming in adds finer copies for the part in
+  view, down to ×1,000,000. Solid cubes are drawn from the front, and pieces
+  hidden behind them are left out, so only what can be seen is made finer;
+  while zooming a lighter drawing is shown, the full one once you stop.
 - **Random dots** – as on the main page, as another way to draw the figure
-  (the fern is drawn this way).
+  (the fern is drawn this way); zoomed in, they too land in the window.
 - **Presets** – Menger sponge, Sierpinski tetrahedron and pyramid, octahedron
   flake, cross of crosses, Cantor dust, a fern and a tree.
 - **Colouring, dimension, Random, undo, links and PNG** – as on the main page.

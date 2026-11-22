@@ -281,6 +281,10 @@ var dragging_frame = false;
 // The camera is aimed at the figure only when asked (Fit, a preset, Random,
 // opening the page), so that changing a transform does not move the view.
 var need_fit = true;
+// While the view is being turned or zoomed, the zoomed-in detail is drawn
+// lighter; once it has been still for a moment, in full.
+var view_moved = 0, settle_timer = null;
+var SETTLE_MS = 180;
 
 var canvasSize3 = function(){
   var figure = byId("figure");
@@ -291,6 +295,12 @@ var canvasSize3 = function(){
   };
 };
 
+// 250%, then ×120 or ×45,000 (as the flat page shows it).
+var formatZoom3 = function(z){
+  if (z < 10) { return Math.round(z * 100) + "%"; }
+  return "×" + formatCount(Math.round(z));
+};
+
 var updateCount3 = function(){
   var text;
   if (!space.n) { text = "No transforms"; }
@@ -298,10 +308,10 @@ var updateCount3 = function(){
     text = space.failed ? "No dots: the point flies off (a transform does not shrink enough)" :
       formatCount(space.in_view) + " dots" + (space.done() ? "" : "…");
   } else {
-    var levels = space.visible_levels(), ls = space.level_start;
-    var count = ls[levels[1] + 1] - ls[levels[0]];
+    var count = space.drawn_count();
     text = formatCount(count) + (count === 1 ? " cube" : " cubes");
   }
+  if (Math.abs(space.view.zoom - 1) > 1e-9) { text += ", zoom " + formatZoom3(space.view.zoom); }
   byId("point_count").textContent = text;
 };
 
@@ -342,13 +352,19 @@ var paint3 = function(){
     }
     layer_key = "";
   } else {
+    // Lighter zoomed-in detail while the view moves (or a frame is dragged).
+    var moving = dragging_frame || performance.now() - view_moved < SETTLE_MS;
+    var budget = moving ? SPACE_ZOOM_PREVIEW : SPACE_ZOOM_COPIES;
     var key = JSON.stringify([gkey, space.only_last, space.solid, space.colour_mode, PAPER, COLOUR_TABLE[0],
-                              COLOUR_TABLE[255], space.view, space.centre, space.radius, w, h]);
+                              COLOUR_TABLE[255], space.view, space.centre, space.radius, w, h, budget]);
     if (key !== layer_key){
       lctx.setTransform(1, 0, 0, 1, 0, 0);
-      lctx.fillStyle = PAPER;
-      lctx.fillRect(0, 0, w, h);
-      space.paint_copies(lctx, w, h, dpr);
+      lctx.clearRect(0, 0, w, h);
+      if (space.view.zoom <= 1.01 || !space.solid){   // drawn from the back: paper first
+        lctx.fillStyle = PAPER;
+        lctx.fillRect(0, 0, w, h);
+      }
+      space.paint_copies(lctx, w, h, dpr, budget);
       layer_key = key;
     }
   }
@@ -447,9 +463,13 @@ var figureChanged = function(push){
   if (push !== false) { scheduleHistory(true); }
 };
 
-// The view changed: redraw, and keep the turn in the link.
+// The view changed: redraw (lighter for now, in full once it is still), and
+// keep the turn in the link.
 var viewChanged = function(){
   byId("similar_canvas").classList.toggle("zoomed", space.view.zoom !== 1 || space.view.pan_x !== 0 || space.view.pan_y !== 0);
+  view_moved = performance.now();
+  clearTimeout(settle_timer);
+  settle_timer = setTimeout(redraw, SETTLE_MS + 20);
   redraw();
   scheduleHistory(false);
 };
@@ -504,7 +524,7 @@ var fitView = function(){
 // Zoom by factor f, keeping the point under (mx, my) (CSS pixels on the canvas) where it is.
 var zoomView = function(f, mx, my){
   var canvas = byId("similar_canvas");
-  var v = space.view, z = Math.max(0.2, Math.min(50, v.zoom * f));
+  var v = space.view, z = Math.max(0.2, Math.min(SPACE_MAX_ZOOM, v.zoom * f));
   f = z / v.zoom;
   var ox = mx - canvas.clientWidth / 2, oy = my - canvas.clientHeight / 2;
   v.pan_x = ox - (ox - v.pan_x) * f;

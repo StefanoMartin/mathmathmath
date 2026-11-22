@@ -335,3 +335,97 @@ test("solid cubes: only the faces turned towards the viewer are drawn", () => {
   assert.ok(ctx.strokes >= 1);
   S.solid = true;
 });
+
+// ---- Zooming in: finer detail for the part in view ----
+
+function zoomedMenger(zoom, toward){
+  S.set_transforms(preset("Menger sponge"));
+  S.repetition = 2;
+  S.only_last = true;
+  S.solid = true;
+  S.draw_mode = "copies";
+  S.build();
+  S.show_handles = false;
+  S.view = { yaw: -30, pitch: 20, zoom: 1, pan_x: 0, pan_y: 0 };
+  S.fit_bounds();
+  S.w_px = 400; S.h_px = 300;
+  // Zoom keeping the point "toward" where it is on the canvas.
+  const cam1 = S.camera(400, 300, 1);
+  const q = S.project(toward, cam1);
+  S.view.zoom = zoom;
+  S.view.pan_x = (q[0] - 200) - (q[0] - 200) * zoom;
+  S.view.pan_y = (q[1] - 150) - (q[1] - 150) * zoom;
+  return S.camera(400, 300, 1);
+}
+
+test("zoomed in, the cubes in view are made finer, down to the size of the copies at zoom 1", () => {
+  const cam = zoomedMenger(30, [0, 1, 1]);
+  const ball = S.detail_ball();
+  assert.ok(close(ball.small, Math.pow(0.3333, 2) / 30, 1e-9));
+  assert.ok(S.zoom_detail(cam, 40000));
+  assert.ok(S.detail_count > 400, `finer than the 400 cubes of generation 2: ${S.detail_count}`);
+  for (let i = 0; i < S.detail_count; i++){
+    assert.ok(S.copy_size(S.extra, i) <= ball.small * 1.01, "small enough");
+  }
+  // A small budget: an even size everywhere, within the budget.
+  S.zoom_detail(cam, 500);
+  assert.ok(S.detail_count <= 500);
+});
+
+test("zoomed in, solid cubes are drawn from the front and hidden ones are left out", () => {
+  const cam = zoomedMenger(5000, [0, 1, 1]);
+  const ball = S.detail_ball();
+  const sizes = [];
+  const keep = S.draw_cube;
+  S.draw_cube = function(ctx, m, ...rest){ sizes.push(Math.hypot(m[0], m[3], m[6])); return keep.call(this, ctx, m, ...rest); };
+  const ctx = countingContext();
+  ctx.globalCompositeOperation = "source-over";
+  assert.ok(S.paint_front_to_back(ctx, cam, 40000, 2, 1));
+  S.draw_cube = keep;
+  const drawn = sizes;
+  assert.equal(drawn.length, S.detail_count);
+  // At ×5000 a copy as small as at zoom 1 is (1/3)^2 / 5000 across: drawing them all
+  // in the window's depth would take far more; only the visible ones are drawn.
+  assert.ok(S.detail_count > 100 && S.detail_count < 40000, String(S.detail_count));
+  assert.ok(drawn.every((v) => v <= ball.small * 1.01));
+  assert.equal(ctx.globalCompositeOperation, "source-over", "left as it was");
+});
+
+test("random dots zoomed in: the figure is cut into the pieces in view, picked by share", () => {
+  S.set_transforms(preset("Sierpinski tetrahedron"));
+  S.draw_mode = "dots";
+  S.show_handles = false;
+  S.bounds_key = "";
+  S.view = { yaw: -30, pitch: 20, zoom: 1, pan_x: 0, pan_y: 0 };
+  S.fit_bounds();
+  S.settle();
+  for (let i = 0; i < 300; i++) { S.step_point(); }
+  const point = [S.x, S.y, S.z];
+  const q = S.project(point, S.camera(200, 200, 1));
+  S.view.zoom = 500;
+  S.view.pan_x = (q[0] - 100) - (q[0] - 100) * 500;
+  S.view.pan_y = (q[1] - 100) - (q[1] - 100) * 500;
+  S.key = "";
+  S.prepare(200, 200, 1);
+  for (let k = 0; k < 10 && !S.done(); k++) { S.run(20); }
+  assert.ok(S.piece_count > 1);
+  assert.ok(S.in_view > 0.3 * S.placed, `${S.in_view} of ${S.placed}`);
+  // Without the pieces, hardly any dot would land in the window.
+  S.view.zoom = 1;
+  S.key = "";
+  S.prepare(200, 200, 1);
+  assert.equal(S.piece_count, 1);
+  S.draw_mode = "copies";
+});
+
+test("picking by weight in one step (the alias method)", () => {
+  const weights = [1, 2, 3, 0.5, 0];
+  const table = app.aliasTable(weights);
+  const total = weights.reduce((a, b) => a + b);
+  const chance = new Array(weights.length).fill(0);
+  for (let i = 0; i < weights.length; i++){
+    chance[i] += table.prob[i] / weights.length;
+    chance[table.alias[i]] += (1 - table.prob[i]) / weights.length;
+  }
+  chance.forEach((c, i) => assert.ok(close(c, weights[i] / total, 1e-12), `${i}: ${c}`));
+});

@@ -443,3 +443,23 @@ test("random dots: zoomed far in, the detail is as fine as in the whole figure",
   expect(in_view / placed).toBeGreaterThan(0.3);
   expect(errors).toEqual([]);
 });
+
+test("the Taiji lines preset: its circle and S, a smaller taiji in each eye", async ({ page }) => {
+  const errors = await open(page);
+  const value = await page.evaluate(() => [...document.querySelectorAll("#preset option")]
+    .find((o) => o.value && o.textContent === "Taiji lines").value);
+  await page.selectOption("#preset", value);
+  await expect(page.locator("#shape")).toHaveValue("custom");
+  await expect(page.locator("#filled")).not.toBeChecked();
+  await expect(page.locator("#only_last")).not.toBeChecked();
+  await expect(page.locator(".box_iteration")).toHaveCount(2);
+  await expect(page.locator("#point_count")).toHaveText("16,256 points calculated");
+  await expect.poll(() => page.evaluate(() => [similar.shape.full.x.length, similar.shape.closed])).toEqual([128, false]);
+  // The figure travels with the link, shape included.
+  await page.waitForTimeout(600);
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  await expect(other.locator("#point_count")).toHaveText("16,256 points calculated");
+  expect(await other.evaluate(() => similar.shape.full.x.length)).toBe(128);
+  expect(errors).toEqual([]);
+});

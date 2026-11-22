@@ -113,6 +113,35 @@ var fixedPoint3 = function(m){
 // Most cube copies calculated (all generations together), and while dragging.
 var SPACE_MAX_COPIES = 120000;
 var SPACE_PREVIEW_COPIES = 5000;
+// Most cubes drawn for the detail of a zoomed-in view, and while zooming.
+var SPACE_ZOOM_COPIES = 40000;
+var SPACE_ZOOM_PREVIEW = 2500;
+var SPACE_MAX_ZOOM = 1e6;
+var SPACE_DOT_PIECES = 20000;   // most pieces the window is cut into for random dots
+
+// Picking among n things by weight in one step (Vose's alias method): slot i
+// is thing i with chance prob[i], otherwise thing alias[i].
+var aliasTable = function(weights){
+  var n = weights.length, total = 0, i;
+  var prob = new Float64Array(Math.max(n, 1)), alias = new Int32Array(Math.max(n, 1));
+  for (i = 0; i < n; i++) { total += weights[i]; }
+  var scaled = [], small = [], large = [];
+  for (i = 0; i < n; i++){
+    scaled.push(total > 0 ? weights[i] / total * n : 1);
+    (scaled[i] < 1 ? small : large).push(i);
+    alias[i] = i;
+  }
+  while (small.length && large.length){
+    var l = small.pop(), g = large[large.length - 1];
+    prob[l] = scaled[l];
+    alias[l] = g;
+    scaled[g] -= 1 - scaled[l];
+    if (scaled[g] < 1) { large.pop(); small.push(g); }
+  }
+  while (large.length) { prob[large.pop()] = 1; }
+  while (small.length) { prob[small.pop()] = 1; }
+  return { prob: prob, alias: alias };
+};
 
 // The corners of the unit cube: corner i is (i & 1, i >> 1 & 1, i >> 2 & 1).
 // Its 12 edges, and its 6 faces with their corners in order around the
@@ -360,11 +389,11 @@ var space = {
     this.radius = Math.max(Math.sqrt(r2), 1e-6);
   },
 
-  // The colour of copy i of generation level (of last), as [r, g, b].
-  copy_rgb: function(i, level, last){
+  // The colour of a copy made last by transform tag, in generation level (of last), as [r, g, b].
+  copy_rgb: function(tag, level, last){
     var hex;
     if (this.colour_mode === "transform"){
-      hex = this.tags[i] === SEED_TAG ? INK : transformColour(this.tags[i], this.n);
+      hex = tag === SEED_TAG ? INK : transformColour(tag, this.n);
     } else if (this.colour_mode === "generation"){
       hex = generationColour(last > 0 ? level / last : 1);
     } else {
@@ -403,26 +432,375 @@ var space = {
 
   // Draw the copies: the last generation as solid lit cubes (or outlines),
   // the earlier ones (when shown) as outlines over them.
-  paint_copies: function(ctx, w, h, dpr){
+  // Zoomed in, the last generation is replaced by finer copies of the part
+  // in view (see zoom_detail()), at most "budget" of them.
+  paint_copies: function(ctx, w, h, dpr, budget){
     var cam = this.camera(w, h, dpr);
     this.cam = cam;
+    this.w_px = w;
+    this.h_px = h;
     var levels = this.visible_levels(), first = levels[0], last = levels[1];
     var ls = this.level_start, all_last = this.level_start.length - 2;
-    if (this.solid) { this.paint_solid(ctx, cam, ls[last], ls[last + 1], last, all_last, dpr); }
-    var upto = this.solid ? last - 1 : last;
+    var C = this.copies, T = this.tags, from = ls[last], to = ls[last + 1];
+    this.detail_count = -1;
+    var zoomed = this.view.zoom > 1.01;
+    if (zoomed && this.solid && this.paint_front_to_back(ctx, cam, budget || SPACE_ZOOM_COPIES, all_last, dpr)){
+      // drawn
+    } else {
+      if (zoomed && this.zoom_detail(cam, budget || SPACE_ZOOM_COPIES)){
+        C = this.extra; T = this.extra_tags; from = 0; to = this.detail_count;
+      }
+      if (this.solid) { this.paint_solid(ctx, cam, C, T, from, to, all_last, all_last, dpr); }
+      else { this.paint_outlines(ctx, cam, C, T, from, to, all_last, all_last, dpr); }
+    }
     ctx.globalAlpha = this.solid ? 0.7 : 1;
-    for (var k = first; k <= upto; k++) { this.paint_outlines(ctx, cam, ls[k], ls[k + 1], k, all_last, dpr); }
+    for (var k = first; k < last; k++){
+      this.paint_outlines(ctx, cam, this.copies, this.tags, ls[k], ls[k + 1], k, all_last, dpr);
+    }
     ctx.globalAlpha = 1;
   },
 
-  paint_outlines: function(ctx, cam, from, to, level, last, dpr){
+  // How many cubes the last drawing showed.
+  drawn_count: function(){
+    if (this.detail_count >= 0) { return this.detail_count; }
+    var levels = this.visible_levels(), ls = this.level_start;
+    return ls[levels[1] + 1] - ls[levels[0]];
+  },
+
+  /*
+   * Detail that grows as you zoom in, as on the flat page. Each transform
+   * maps a ball around the middle of the cube into itself (the ball holds the
+   * cube), so a copy and all the copies made from it lie in the copy's image
+   * of that ball. Starting from the last generation, the copies whose ball
+   * reaches the window and that are larger than the last generation's copies
+   * were at zoom 1 are replaced by their own copies (made inside them, so
+   * they keep their colour), the largest first, until they are small enough
+   * or there would be more than "budget". The copies are in this.extra.
+   * Returns false if it cannot be done (a transform does not shrink).
+   */
+  // A ball around the middle of the cube that holds the cube and that every
+  // transform maps into itself: {c, R, shrink (each transform's size), small
+  // (how small copies are cut, for the zoom)}; null if a transform does not shrink.
+  detail_ball: function(){
+    var n = this.n, m = this.maps, t;
+    if (!n) { return null; }
+    var shrink = [], c = [0.5, 0.5, 0.5], R = Math.sqrt(0.75), most = 0;
+    for (t = 0; t < n; t++){
+      var tr = this.transforms[t];
+      var s = Math.max(Math.abs(tr[6]), Math.abs(tr[7]), Math.abs(tr[8]));
+      if (s >= 0.999) { return null; }
+      shrink.push(s);
+      most = Math.max(most, s);
+      var g = 12 * t, d = 0;
+      for (var r = 0; r < 3; r++){
+        var v = m[g + 3 * r] * c[0] + m[g + 3 * r + 1] * c[1] + m[g + 3 * r + 2] * c[2] + m[g + 9 + r] - c[r];
+        d += v * v;
+      }
+      R = Math.max(R, Math.sqrt(d) / (1 - s));
+    }
+    var reps = this.level_start.length - 2;
+    return { c: c, R: R, shrink: shrink, small: Math.pow(most, reps) / this.view.zoom };
+  },
+
+  zoom_detail: function(cam, budget){
+    var ball = this.detail_ball();
+    if (!ball) { return false; }
+    var reps = this.level_start.length - 2;
+    var pieces = this.cut_view(this.copies, this.tags, this.level_start[reps], this.total,
+                               cam, ball.c, ball.R, ball.shrink, null, ball.small, budget);
+    if (!this.extra || this.extra.length < 12 * pieces.length){
+      this.extra = new Float64Array(12 * Math.max(pieces.length, 1024));
+      this.extra_tags = new Uint8Array(Math.max(pieces.length, 1024));
+    }
+    for (var i = 0; i < pieces.length; i++){
+      this.extra.set(pieces[i].m, 12 * i);
+      this.extra_tags[i] = pieces[i].tag;
+    }
+    this.detail_count = pieces.length;
+    return true;
+  },
+
+  /*
+   * The pieces of the figure that reach the window, cut down to "small":
+   * copies (12 numbers m, the transform that made them "tag", their share of
+   * the dots "share") starting from the copies from .. to of buffer C (with
+   * tags T). Each piece lies in a ball of radius size * R around its image of
+   * c, where size is the product of the transforms' sizes ("shrink").
+   * chance: the share of each transform, or null. The largest pieces are cut
+   * first, so if there would be more than "budget", they stop at an even size.
+   */
+  cut_view: function(C, T, from, to, cam, c, R, shrink, chance, small, budget){
+    var n = this.n, m = this.maps;
+    var V = cam.V, off = cam.off, D = cam.D, kD = cam.k * cam.D;
+    var W = this.w_px, H = this.h_px;
+    // In view: the ball around the piece's image of c, seen by the camera.
+    var visible = function(p){
+      var x = 0, y = 0, z = 0;
+      for (var r = 0; r < 3; r++){
+        var q = p.m[3 * r] * c[0] + p.m[3 * r + 1] * c[1] + p.m[3 * r + 2] * c[2] + p.m[9 + r];
+        x += V[r] * q; y += V[3 + r] * q; z += V[6 + r] * q;
+      }
+      x += off[0]; y += off[1]; z += off[2];
+      var radius = p.size * R, gap = D - z - radius;
+      if (gap < 0.02 * D) { return true; }       // reaches round the camera: keep it
+      var f = kD / gap, X = cam.cx + x * kD / (D - z), Y = cam.cy - y * kD / (D - z), rr = radius * f;
+      return X + rr >= 0 && X - rr <= W && Y + rr >= 0 && Y - rr <= H;
+    };
+    // A heap of the pieces still too large, the largest on top.
+    var heap = [], keep = [];
+    var push = function(p){
+      if (!visible(p)) { return; }
+      if (p.size <= small) { keep.push(p); return; }
+      heap.push(p);
+      for (var i = heap.length - 1; i > 0;){
+        var up = (i - 1) >> 1;
+        if (heap[up].size >= heap[i].size) { break; }
+        var tmp = heap[up]; heap[up] = heap[i]; heap[i] = tmp; i = up;
+      }
+    };
+    var pop = function(){
+      var top = heap[0], end = heap.pop();
+      if (heap.length){
+        heap[0] = end;
+        for (var i = 0;;){
+          var l = 2 * i + 1, r = l + 1, b = i;
+          if (l < heap.length && heap[l].size > heap[b].size) { b = l; }
+          if (r < heap.length && heap[r].size > heap[b].size) { b = r; }
+          if (b === i) { break; }
+          var tmp = heap[b]; heap[b] = heap[i]; heap[i] = tmp; i = b;
+        }
+      }
+      return top;
+    };
+    for (var i = from; i < to; i++){
+      push({ m: Array.prototype.slice.call(C, 12 * i, 12 * i + 12), tag: T[i],
+             size: this.copy_size(C, i), share: 1 });
+    }
+    while (heap.length && keep.length + heap.length + n <= budget){
+      var p = pop();
+      for (var t = 0; t < n; t++){
+        var g = 12 * t, q = new Array(12);
+        for (var a = 0; a < 3; a++){
+          for (var b = 0; b < 3; b++){
+            q[3 * a + b] = p.m[3 * a] * m[g + b] + p.m[3 * a + 1] * m[g + 3 + b] + p.m[3 * a + 2] * m[g + 6 + b];
+          }
+          q[9 + a] = p.m[3 * a] * m[g + 9] + p.m[3 * a + 1] * m[g + 10] + p.m[3 * a + 2] * m[g + 11] + p.m[9 + a];
+        }
+        push({ m: q, tag: p.tag === SEED_TAG || p.tag < 0 ? t : p.tag, size: p.size * shrink[t],
+               share: chance ? p.share * chance[t] : 1 });
+      }
+    }
+    return keep.concat(heap);
+  },
+
+  // How much copy i of the buffer C stretches lengths at most (its largest
+  // singular value, by a few rounds of the power method on M^T M).
+  copy_size: function(C, i){
+    var o = 12 * i, v = [1, 0.7, 0.4], norm = 0;
+    for (var round = 0; round < 12; round++){
+      var u = [0, 1, 2].map(function(r){ return C[o + 3 * r] * v[0] + C[o + 3 * r + 1] * v[1] + C[o + 3 * r + 2] * v[2]; });
+      var x = [0, 1, 2].map(function(col){ return C[o + col] * u[0] + C[o + 3 + col] * u[1] + C[o + 6 + col] * u[2]; });
+      var len = Math.sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+      if (len === 0) { return 0; }
+      norm = Math.sqrt(len / Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]));
+      v = [x[0] / len, x[1] / len, x[2] / len];
+    }
+    return norm * 1.001;
+  },
+
+  /*
+   * Zoomed in, solid cubes are drawn from the front: the piece whose ball
+   * comes nearest is taken first; a piece larger than the copies at zoom 1 is
+   * replaced by its own copies, a small enough one is drawn as a cube behind
+   * what is drawn already ("destination-over"). A coarse map of the canvas
+   * keeps which parts are already covered, and a piece whose ball falls only
+   * on covered parts is hidden: it is left out with all its copies. So only
+   * the copies that can be seen are made finer, at any depth of zoom.
+   * At most "budget" cubes. False if it cannot be done.
+   */
+  paint_front_to_back: function(ctx, cam, budget, last, dpr){
+    var ball = this.detail_ball();
+    if (!ball) { return false; }
+    var n = this.n, m = this.maps, c = ball.c, R = ball.R, shrink = ball.shrink, small = ball.small;
+    var V = cam.V, off = cam.off, D = cam.D, kD = cam.k * cam.D;
+    var W = this.w_px, H = this.h_px;
+    var CELL = 4, mw = Math.ceil(W / CELL), mh = Math.ceil(H / CELL);
+    var covered = new Uint8Array(mw * mh);
+    var self = this;
+
+    // Where a piece's ball is: its nearest depth, and its box on the canvas.
+    var place = function(p){
+      var x = 0, y = 0, z = 0;
+      for (var r = 0; r < 3; r++){
+        var q = p.m[3 * r] * c[0] + p.m[3 * r + 1] * c[1] + p.m[3 * r + 2] * c[2] + p.m[9 + r];
+        x += V[r] * q; y += V[3 + r] * q; z += V[6 + r] * q;
+      }
+      x += off[0]; y += off[1]; z += off[2];
+      var radius = p.size * R, gap = D - z - radius;
+      p.front = z + radius;
+      if (gap < 0.02 * D){ p.x0 = -Infinity; p.x1 = Infinity; p.y0 = -Infinity; p.y1 = Infinity; return true; }
+      var f = kD / (D - z), rr = radius * kD / gap;
+      var X = cam.cx + x * f, Y = cam.cy - y * f;
+      p.x0 = X - rr; p.x1 = X + rr; p.y0 = Y - rr; p.y1 = Y + rr;
+      return p.x1 >= 0 && p.x0 <= W && p.y1 >= 0 && p.y0 <= H;
+    };
+    // Is every part of the canvas under the piece's box covered already?
+    var hidden = function(p){
+      var cx0 = Math.max(0, Math.floor(p.x0 / CELL)), cx1 = Math.min(mw - 1, Math.floor(p.x1 / CELL));
+      var cy0 = Math.max(0, Math.floor(p.y0 / CELL)), cy1 = Math.min(mh - 1, Math.floor(p.y1 / CELL));
+      for (var cy = cy0; cy <= cy1; cy++){
+        for (var cx = cx0; cx <= cx1; cx++){ if (!covered[cy * mw + cx]) { return false; } }
+      }
+      return true;
+    };
+    // After drawing a cube: the cells wholly inside its outline are covered.
+    var cover = function(xs, ys){
+      var hull = convexHull(xs, ys);
+      var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (var k = 0; k < hull.length; k++){
+        x0 = Math.min(x0, hull[k][0]); x1 = Math.max(x1, hull[k][0]);
+        y0 = Math.min(y0, hull[k][1]); y1 = Math.max(y1, hull[k][1]);
+      }
+      var cx0 = Math.max(0, Math.floor(x0 / CELL)), cx1 = Math.min(mw - 1, Math.floor(x1 / CELL));
+      var cy0 = Math.max(0, Math.floor(y0 / CELL)), cy1 = Math.min(mh - 1, Math.floor(y1 / CELL));
+      for (var cy = cy0; cy <= cy1; cy++){
+        for (var cx = cx0; cx <= cx1; cx++){
+          var i = cy * mw + cx;
+          if (covered[i]) { continue; }
+          var ax = cx * CELL, ay = cy * CELL;
+          if (insidePolygon(hull, ax, ay) && insidePolygon(hull, ax + CELL, ay) &&
+              insidePolygon(hull, ax, ay + CELL) && insidePolygon(hull, ax + CELL, ay + CELL)){
+            covered[i] = 1;
+          }
+        }
+      }
+    };
+
+    // A heap of pieces, the nearest in front on top.
+    var heap = [];
+    var push = function(p){
+      if (!place(p)) { return; }
+      heap.push(p);
+      for (var i = heap.length - 1; i > 0;){
+        var up = (i - 1) >> 1;
+        if (heap[up].front >= heap[i].front) { break; }
+        var tmp = heap[up]; heap[up] = heap[i]; heap[i] = tmp; i = up;
+      }
+    };
+    var pop = function(){
+      var top = heap[0], end = heap.pop();
+      if (heap.length){
+        heap[0] = end;
+        for (var i = 0;;){
+          var l = 2 * i + 1, r = l + 1, b = i;
+          if (l < heap.length && heap[l].front > heap[b].front) { b = l; }
+          if (r < heap.length && heap[r].front > heap[b].front) { b = r; }
+          if (b === i) { break; }
+          var tmp = heap[b]; heap[b] = heap[i]; heap[i] = tmp; i = b;
+        }
+      }
+      return top;
+    };
+
+    var reps = this.level_start.length - 2, C = this.copies;
+    for (var i = this.level_start[reps]; i < this.total; i++){
+      push({ m: Array.prototype.slice.call(C, 12 * i, 12 * i + 12), tag: this.tags[i], size: this.copy_size(C, i) });
+    }
+
     var xs = new Float64Array(8), ys = new Float64Array(8), zs = new Float64Array(8);
-    var C = this.copies, colour = null, count = 0;
+    var drawn = 0, visits = 0, styles = {};
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.lineWidth = 0.8 * dpr;
+    ctx.lineJoin = "round";
+    while (heap.length && visits < 40 * budget){
+      var p = pop();
+      visits++;
+      if (hidden(p)) { continue; }
+      // Small enough (or no more room): draw it as a cube.
+      if (p.size <= small || drawn + heap.length >= budget){
+        if (self.corners(p.m, 0, cam, xs, ys, zs)){
+          self.draw_cube(ctx, p.m, xs, ys, zs, cam, self.copy_rgb(p.tag, last, last), styles);
+          cover(xs, ys);
+          drawn++;
+        }
+        continue;
+      }
+      for (var t = 0; t < n; t++){
+        var g = 12 * t, q = new Array(12);
+        for (var a = 0; a < 3; a++){
+          for (var b = 0; b < 3; b++){
+            q[3 * a + b] = p.m[3 * a] * m[g + b] + p.m[3 * a + 1] * m[g + 3 + b] + p.m[3 * a + 2] * m[g + 6 + b];
+          }
+          q[9 + a] = p.m[3 * a] * m[g + 9] + p.m[3 * a + 1] * m[g + 10] + p.m[3 * a + 2] * m[g + 11] + p.m[9 + a];
+        }
+        push({ m: q, tag: p.tag === SEED_TAG ? t : p.tag, size: p.size * shrink[t] });
+      }
+    }
+    // The paper behind everything.
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "source-over";
+    this.detail_count = drawn;
+    return true;
+  },
+
+  // One solid cube (the unit cube moved by m, its corners on the canvas in
+  // xs, ys, zs): the faces turned towards the viewer, lit from the upper left
+  // and faded a little with distance. styles keeps the colours worked out.
+  draw_cube: function(ctx, m, xs, ys, zs, cam, rgb, styles){
+    var D = cam.D, kD = cam.k * cam.D, R = this.radius, k;
+    var cxs = new Float64Array(8), cys = new Float64Array(8);
+    for (k = 0; k < 8; k++){
+      var f = kD / (D - zs[k]);
+      cxs[k] = (xs[k] - cam.cx) / f;
+      cys[k] = (cam.cy - ys[k]) / f;
+    }
+    var flip = det3(m) < 0 ? -1 : 1;
+    var mid = 0;
+    for (k = 0; k < 8; k++) { mid += zs[k] / 8; }
+    var near = (mid + R) / (2 * R);
+    near = near < 0 ? 0 : (near > 1 ? 1 : near);
+    var lx = -0.6, ly = 0.6, lz = 0.53, ll = Math.sqrt(lx * lx + ly * ly + lz * lz);
+    lx /= ll; ly /= ll; lz /= ll;
+    var paper = hexToRgb(PAPER) || [251, 249, 243];
+    for (var fi = 0; fi < 6; fi++){
+      var F = CUBE_FACES[fi], a0 = F[0], a1 = F[1], a2 = F[2];
+      var ux = cxs[a1] - cxs[a0], uy = cys[a1] - cys[a0], uz = zs[a1] - zs[a0];
+      var vx = cxs[a2] - cxs[a1], vy = cys[a2] - cys[a1], vz = zs[a2] - zs[a1];
+      var nx = (uy * vz - uz * vy) * flip, ny = (uz * vx - ux * vz) * flip, nz = (ux * vy - uy * vx) * flip;
+      if (nx * (0 - cxs[a0]) + ny * (0 - cys[a0]) + nz * (D - zs[a0]) <= 0) { continue; }
+      var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      var lamb = (nx * lx + ny * ly + nz * lz) / nl;
+      var shade = Math.round((0.22 + 0.78 * (lamb > 0 ? lamb : 0)) * 24) / 24;
+      var fade = Math.round((0.45 + 0.55 * near) * 8) / 8;
+      var key = rgb.join(",") + "|" + shade + "|" + fade;
+      var style = styles[key];
+      if (!style){
+        style = styles[key] = "rgb(" + Math.round(paper[0] + (rgb[0] * shade - paper[0]) * fade) + "," +
+          Math.round(paper[1] + (rgb[1] * shade - paper[1]) * fade) + "," +
+          Math.round(paper[2] + (rgb[2] * shade - paper[2]) * fade) + ")";
+      }
+      ctx.fillStyle = style;
+      ctx.strokeStyle = style;
+      ctx.beginPath();
+      ctx.moveTo(xs[F[0]], ys[F[0]]);
+      ctx.lineTo(xs[F[1]], ys[F[1]]);
+      ctx.lineTo(xs[F[2]], ys[F[2]]);
+      ctx.lineTo(xs[F[3]], ys[F[3]]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  },
+
+  paint_outlines: function(ctx, cam, C, T, from, to, level, last, dpr){
+    var xs = new Float64Array(8), ys = new Float64Array(8), zs = new Float64Array(8);
+    var colour = null, count = 0;
     ctx.lineWidth = (level === last ? 1.2 : 1) * dpr;
     ctx.lineJoin = "round";
     ctx.beginPath();
     for (var i = from; i < to; i++){
-      var rgb = this.copy_rgb(i, level, last), css = "rgb(" + rgb.join(",") + ")";
+      var rgb = this.copy_rgb(T[i], level, last), css = "rgb(" + rgb.join(",") + ")";
       if (css !== colour || count >= 32){
         if (colour !== null) { ctx.stroke(); ctx.beginPath(); }
         colour = css;
@@ -442,8 +820,8 @@ var space = {
   // Solid cubes, the farthest first so that the nearer ones cover them; each
   // face that turns towards the viewer is lit from the upper left, and the
   // far ones fade a little into the paper.
-  paint_solid: function(ctx, cam, from, to, level, last, dpr){
-    var C = this.copies, V = cam.V, off = cam.off, count = to - from, i, j;
+  paint_solid: function(ctx, cam, C, T, from, to, level, last, dpr){
+    var V = cam.V, off = cam.off, count = to - from, i, j;
     var order = new Uint32Array(count), depth = new Float64Array(count);
     for (j = 0; j < count; j++){
       var o = 12 * (from + j);
@@ -478,7 +856,16 @@ var space = {
         cys[k] = (cam.cy - ys[k]) / f;
       }
       var flip = det3([C[g], C[g + 1], C[g + 2], C[g + 3], C[g + 4], C[g + 5], C[g + 6], C[g + 7], C[g + 8]]) < 0 ? -1 : 1;
-      var rgb = this.copy_rgb(i, level, last);
+      // Off the canvas: nothing to draw.
+      var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (k = 0; k < 8; k++){
+        if (xs[k] < x0) { x0 = xs[k]; }
+        if (xs[k] > x1) { x1 = xs[k]; }
+        if (ys[k] < y0) { y0 = ys[k]; }
+        if (ys[k] > y1) { y1 = ys[k]; }
+      }
+      if (x1 < 0 || y1 < 0 || x0 > this.w_px || y0 > this.h_px) { continue; }
+      var rgb = this.copy_rgb(T[i], level, last);
       var near = (depth[order[q]] + R) / (2 * R);
       near = near < 0 ? 0 : (near > 1 ? 1 : near);
       for (var fi = 0; fi < 6; fi++){
@@ -735,13 +1122,51 @@ var space = {
     this.depth.fill(-Infinity);
     this.placed = 0; this.in_view = 0; this.lit = 0;
     this.failed = false;
-    if (!this.n || !this.dots_box() || !this.settle()){ this.failed = true; return; }
+    this.w_px = w; this.h_px = h;
+    var box = this.n ? this.dots_box() : null;
+    if (!box || !this.settle()){ this.failed = true; return; }
     this.cam = this.camera(w, h, dpr);
+    this.dot_pieces(box);
     this.run(SPACE_FIRST_MS);
   },
 
+  /*
+   * Zoomed in, most dots of a point jumping over the whole figure would land
+   * outside the window. As on the flat page, the figure is cut into the
+   * pieces (copies of the whole figure) that reach the window, each with its
+   * share of the dots; every dot is then the point's image in a piece picked
+   * by share. The picture is the same, but nearly every dot lands in view.
+   */
+  dot_pieces: function(box){
+    var pieces = null;
+    if (this.view.zoom > 1.01){
+      var c = [0, 1, 2].map(function(a){ return (box.min[a] + box.max[a]) / 2; });
+      var R = Math.sqrt([0, 1, 2].reduce(function(sum, a){ return sum + Math.pow((box.max[a] - box.min[a]) / 2, 2); }, 0));
+      var shrink = this.transforms.map(function(t){ return Math.max(Math.abs(t[6]), Math.abs(t[7]), Math.abs(t[8])); });
+      var chance = [];
+      for (var t = 0; t < this.n; t++) { chance.push(this.cum[t] - (t ? this.cum[t - 1] : 0)); }
+      if (Math.max.apply(null, shrink) < 0.999){
+        var small = 0.5 * Math.min(this.w_px, this.h_px) / this.cam.k;
+        pieces = this.cut_view([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], [SEED_TAG], 0, 1, this.cam, c, R,
+                               shrink, chance, small, SPACE_DOT_PIECES);
+      }
+    }
+    if (!pieces) { pieces = [{ m: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], tag: SEED_TAG, share: 1 }]; }
+    var count = pieces.length;
+    this.piece_count = count;
+    this.pieces = new Float64Array(12 * Math.max(count, 1));
+    this.piece_tags = new Uint8Array(Math.max(count, 1));
+    for (var i = 0; i < count; i++){
+      this.pieces.set(pieces[i].m, 12 * i);
+      this.piece_tags[i] = pieces[i].tag;
+    }
+    var table = aliasTable(pieces.map(function(p){ return p.share; }));
+    this.piece_prob = table.prob;
+    this.piece_alias = table.alias;
+  },
+
   done: function(){
-    return this.failed || this.placed >= SPACE_MOST || this.in_view >= SPACE_IN_VIEW ||
+    return this.failed || this.piece_count === 0 || this.placed >= SPACE_MOST || this.in_view >= SPACE_IN_VIEW ||
       (this.in_view >= SPACE_FEWEST && this.in_view >= SPACE_PER_PIXEL * this.lit);
   },
 
@@ -756,6 +1181,8 @@ var space = {
     var o0 = o[0], o1 = o[1], o2 = o[2], ccx = cam.cx, ccy = cam.cy, near = 0.05 * D;
     var x = this.x, y = this.y, z = this.z;
     var placed = this.placed, in_view = this.in_view, lit = this.lit;
+    var P = this.pieces, ptag = this.piece_tags, prob = this.piece_prob, alias = this.piece_alias;
+    var np = this.piece_count, one = np === 1;
     for (;;){
       for (var b = 0; b < 4096; b++){
         var r = Math.random(), k = 0;
@@ -765,16 +1192,27 @@ var space = {
         var ny = m[g + 3] * x + m[g + 4] * y + m[g + 5] * z + m[g + 10];
         z = m[g + 6] * x + m[g + 7] * y + m[g + 8] * z + m[g + 11];
         x = nx; y = ny;
-        var vz = v6 * x + v7 * y + v8 * z + o2;
+        // The dot: the point's image in a piece picked by share.
+        var px = x, py = y, pz = z, dtag = k;
+        if (!one){
+          var u = Math.random() * np, j = u | 0;
+          if (u - j >= prob[j]) { j = alias[j]; }
+          var e = 12 * j;
+          px = P[e] * x + P[e + 1] * y + P[e + 2] * z + P[e + 9];
+          py = P[e + 3] * x + P[e + 4] * y + P[e + 5] * z + P[e + 10];
+          pz = P[e + 6] * x + P[e + 7] * y + P[e + 8] * z + P[e + 11];
+          if (ptag[j] !== SEED_TAG) { dtag = ptag[j]; }
+        }
+        var vz = v6 * px + v7 * py + v8 * pz + o2;
         var gap = D - vz;
         if (gap < near) { continue; }
         var f = kD / gap;
-        var X = ccx + (v0 * x + v1 * y + v2 * z + o0) * f;
-        var Y = ccy - (v3 * x + v4 * y + v5 * z + o1) * f;
+        var X = ccx + (v0 * px + v1 * py + v2 * pz + o0) * f;
+        var Y = ccy - (v3 * px + v4 * py + v5 * pz + o1) * f;
         if (X >= 0 && X < w && Y >= 0 && Y < h){
           var i = (Y | 0) * w + (X | 0);
           if (hits[i]++ === 0) { lit++; }
-          if (vz > depth[i]) { depth[i] = vz; tag[i] = k; }
+          if (vz > depth[i]) { depth[i] = vz; tag[i] = dtag; }
           in_view++;
         }
       }

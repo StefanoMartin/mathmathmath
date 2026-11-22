@@ -264,3 +264,33 @@ test("the two pages link to each other", async ({ page }) => {
   await page.click("text=3D figures");
   await expect(page).toHaveTitle("Similar Fractal 3D");
 });
+
+
+test("zooming far in: finer cubes for the part in view, lighter while zooming, the zoom shown", async ({ page }) => {
+  const errors = await openSpace(page);
+  await page.keyboard.press("h");
+  // Toward the top front corner of the sponge, well past the old limit of ×50.
+  const corner = await screenOf(page, [0.02, 0.98, 0.98]);
+  await page.mouse.move(corner.x, corner.y);
+  for (let k = 0; k < 20; k++) { await page.mouse.wheel(0, -400); }
+  await expect.poll(() => page.evaluate(() => space.view.zoom)).toBeGreaterThan(1000);
+  await finished(page);
+  await page.waitForTimeout(400);      // still for a moment: drawn in full
+  await finished(page);
+  await expect(page.locator("#point_count")).toHaveText(/^[\d,]+ cubes, zoom ×[\d,]+$/);
+  const cubes = await page.evaluate(() => space.drawn_count());
+  expect(cubes).toBeGreaterThan(2500);           // more than while zooming
+  // Lit and detailed: many shades, not one flat face.
+  const shades = await page.evaluate(() => {
+    const c = document.getElementById("similar_canvas");
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    const seen = new Set();
+    for (let i = 0; i < d.length; i += 4 * 7) { seen.add((d[i] >> 3) + "," + (d[i + 1] >> 3) + "," + (d[i + 2] >> 3)); }
+    return seen.size;
+  });
+  expect(shades).toBeGreaterThan(8);
+  await page.click("#viewFit");
+  await finished(page);
+  await expect(page.locator("#point_count")).toHaveText("8,000 cubes");
+  expect(errors).toEqual([]);
+});
