@@ -1,5 +1,6 @@
 // Similar Fractal 3D: the page. Presets, the transform boxes, links and undo,
-// turning and zooming the view, and drawing as the dots come in.
+// drawing the copies (or the dots) and the frames, and what the mouse and
+// fingers do on the figure.
 
 // ---- Presets ----
 
@@ -17,92 +18,143 @@ var gridOfThirds = function(keep){
 };
 var ones = function(i, j, k){ return (i === 1) + (j === 1) + (k === 1); };
 
-// Each transform is [x, y, z, turn x, turn y, turn z, size x, size y, size z(, mirrored)].
+// Each transform is [x, y, z, turn x, turn y, turn z, size x, size y, size z(, mirrored)];
+// every figure lies in the starting cube, from (0, 0, 0) to (1, 1, 1).
 var SPACE_PRESETS = [
-  { name: "Menger sponge", t: gridOfThirds(function(i, j, k){ return ones(i, j, k) <= 1; }) },
-  { name: "Sierpinski tetrahedron",
+  { name: "Menger sponge", repeat: 3, t: gridOfThirds(function(i, j, k){ return ones(i, j, k) <= 1; }) },
+  { name: "Sierpinski tetrahedron", repeat: 6,
     t: [[0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5], [0.5, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5],
         [0.25, 0, 0.433, 0, 0, 0, 0.5, 0.5, 0.5], [0.25, 0.4082, 0.1443, 0, 0, 0, 0.5, 0.5, 0.5]] },
-  { name: "Octahedron flake",
-    t: [[0.5, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5], [-0.5, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5],
-        [0, 0.5, 0, 0, 0, 0, 0.5, 0.5, 0.5], [0, -0.5, 0, 0, 0, 0, 0.5, 0.5, 0.5],
-        [0, 0, 0.5, 0, 0, 0, 0.5, 0.5, 0.5], [0, 0, -0.5, 0, 0, 0, 0.5, 0.5, 0.5]] },
-  { name: "Cross of crosses", t: gridOfThirds(function(i, j, k){ return ones(i, j, k) >= 2; }) },
-  { name: "Cantor dust", t: gridOfThirds(function(i, j, k){ return ones(i, j, k) === 0; }) },
-  // Barnsley's fern given depth: the fronds curl a little out of the plane.
-  { name: "Fern",
-    t: [[0, 0, 0, 0, 0, 0, 0.02, 0.18, 0.02], [0, 0.16, 0, -6.71, 0, 0, 0.85, 0.8559, 0.8559],
-        [0, 0.08, 0, 0, 0, 45, 0.2828, 0.2828, 0.3], [0, 0.08, 0, 0, 0, -45, 0.2828, 0.2828, 0.3, 1]] },
-  // A trunk, its top turned a little, and three branches tilted out around it.
-  { name: "Tree",
-    t: [[0, 0, 0, 0, 0, 0, 0.05, 0.4, 0.05], [0, 0.4, 0, 0, 60, 0, 0.6, 0.6, 0.6],
-        [0, 0.4, 0, 0, 0, 35, 0.42, 0.42, 0.42], [0, 0.4, 0, 0, 120, 35, 0.42, 0.42, 0.42],
-        [0, 0.4, 0, 0, 240, 35, 0.42, 0.42, 0.42]] },
   // Five half-size copies: four on the corners of the square base, one on top.
-  { name: "Sierpinski pyramid",
+  { name: "Sierpinski pyramid", repeat: 5,
     t: [[0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5], [0.5, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5],
         [0, 0, 0.5, 0, 0, 0, 0.5, 0.5, 0.5], [0.5, 0, 0.5, 0, 0, 0, 0.5, 0.5, 0.5],
-        [0.25, 0.3536, 0.25, 0, 0, 0, 0.5, 0.5, 0.5]] }
+        [0.25, 0.3536, 0.25, 0, 0, 0, 0.5, 0.5, 0.5]] },
+  // Six half-size copies pushed out to the six faces: an octahedron.
+  { name: "Octahedron flake", repeat: 5,
+    t: [[0.5, 0.25, 0.25, 0, 0, 0, 0.5, 0.5, 0.5], [0, 0.25, 0.25, 0, 0, 0, 0.5, 0.5, 0.5],
+        [0.25, 0.5, 0.25, 0, 0, 0, 0.5, 0.5, 0.5], [0.25, 0, 0.25, 0, 0, 0, 0.5, 0.5, 0.5],
+        [0.25, 0.25, 0.5, 0, 0, 0, 0.5, 0.5, 0.5], [0.25, 0.25, 0, 0, 0, 0, 0.5, 0.5, 0.5]] },
+  { name: "Cross of crosses", repeat: 4, t: gridOfThirds(function(i, j, k){ return ones(i, j, k) >= 2; }) },
+  { name: "Cantor dust", repeat: 4, t: gridOfThirds(function(i, j, k){ return ones(i, j, k) === 0; }) },
+  // Barnsley's fern given depth: the fronds curl a little out of the plane.
+  // Its main copy shrinks so little that cubes stay large: it is drawn with dots.
+  { name: "Fern", repeat: 7, dots: true,
+    t: [[0.49, 0, 0.49, 0, 0, 0, 0.02, 0.18, 0.02], [0.075, 0.11, 0.075, -6.71, 0, 0, 0.85, 0.8559, 0.8559],
+        [0.4, -0.02, 0.35, 0, 0, 45, 0.2828, 0.2828, 0.3], [0.6, -0.02, 0.35, 0, 0, -45, 0.2828, 0.2828, 0.3, 1]] },
+  // A trunk, its top turned a little, and three branches tilted out around it.
+  { name: "Tree", repeat: 6,
+    t: [[0.475, 0, 0.475, 0, 0, 0, 0.05, 0.4, 0.05], [0.0902, 0.4, 0.6098, 0, 60, 0, 0.6, 0.6, 0.6],
+        [0.328, 0.2795, 0.29, 0, 0, 35, 0.42, 0.42, 0.42], [0.4041, 0.2795, 0.754, 0, 120, 35, 0.42, 0.42, 0.42],
+        [0.7679, 0.2795, 0.456, 0, 240, 35, 0.42, 0.42, 0.42]] }
 ];
 
 var DEFAULT_VIEW = { yaw: -30, pitch: 20 };
 
 // ---- Transform boxes ----
+// Rows: Move X, Y, Z (k = 0..2), Turn X, Y, Z (3..5), then either one Size
+// row for all sides or Size X, Y, Z (6..8), as "Same size on all sides" says.
 
-var ROWS3 = [
-  { name: "Move", step: 0.05, title: "Where the copy goes" },
-  { name: "Turn", step: 5, title: "Tilted around Z, then X, then turned around the upright Y, in degrees" },
-  { name: "Size", step: 0.05, min: 0, title: "How much the copy shrinks along each side" }
-];
+var spaceRow = function(label, k, value, min, max, step, cls, title){
+  return '<tr class="row ' + (cls || "") + '" data-k="' + k + '">' +
+    "<th" + (title ? ' title="' + title + '"' : "") + ">" + label + "</th>" +
+    '<td><input class="number_slide" type="number" value="' + value + '" step="' + step + '"' +
+      (min === 0 ? ' min="0"' : "") + "></td>" +
+    '<td><input type="range" min="' + min + '" max="' + max + '" value="' + value +
+      '" step="' + step + '" class="slider"></td></tr>';
+};
 
 var spaceBoxes = function(){
   return Array.prototype.slice.call(document.querySelectorAll("#boxes .box_iteration"));
 };
 
-// The transforms in the panel.
-var readSpaceTransforms = function(){
-  return spaceBoxes().map(function(box){
-    var t = Array.prototype.map.call(box.querySelectorAll("input.num"), function(input, k){
-      var v = parseFloat(input.value);
-      return isFinite(v) ? v : (k >= 6 ? 0.5 : 0);
-    });
-    t.push(box.querySelector(".mirror").checked ? 1 : 0);
-    return t;
-  });
+var renumberBoxes = function(){
+  spaceBoxes().forEach(function(box, i){ box.querySelector(".box_name").textContent = "T" + (i + 1); });
 };
 
-var renumberBoxes = function(){
-  spaceBoxes().forEach(function(box, i){
-    box.querySelector(".box_name").textContent = "T" + (i + 1);
-  });
+var rowOf = function(box, k, cls){
+  return box.querySelector("tr.row" + (cls ? "." + cls : "") + '[data-k="' + k + '"]');
+};
+
+// The transform in a box: [x, y, z, turn x, turn y, turn z, size x, size y, size z, mirrored].
+var readBox = function(box){
+  var t = [], k;
+  for (k = 0; k < 6; k++) { t.push(readNumber(rowOf(box, k).querySelector(".number_slide"), 0)); }
+  if (box.querySelector(".same").checked){
+    var s = readNumber(rowOf(box, 6, "size_same").querySelector(".number_slide"), 0.5);
+    t.push(s, s, s);
+  } else {
+    for (k = 6; k < 9; k++) { t.push(readNumber(rowOf(box, k, "size_each").querySelector(".number_slide"), 0.5)); }
+  }
+  t.push(box.querySelector(".mirror").checked ? 1 : 0);
+  return t;
+};
+
+var readSpaceTransforms = function(){ return spaceBoxes().map(readBox); };
+
+// Show one size row or three.
+var showSizes = function(box){
+  var same = box.querySelector(".same").checked;
+  box.querySelector("tr.size_same").hidden = !same;
+  Array.prototype.forEach.call(box.querySelectorAll("tr.size_each"), function(row){ row.hidden = same; });
+};
+
+// Turns between -180 and 180, then the values as the boxes show them.
+var tidyTransform = function(t){
+  var out = t.slice();
+  for (var k = 0; k < 9; k++){
+    var v = out[k];
+    if (k >= 3 && k < 6) { v = ((v + 180) % 360 + 360) % 360 - 180; }
+    out[k] = roundTo(v, k >= 3 && k < 6 ? 1 : 4);
+  }
+  out[9] = t[9] ? 1 : 0;
+  return out;
+};
+
+// Put a transform's values in its box (as after a drag on the figure).
+var setBox = function(box, t){
+  t = tidyTransform(t);
+  for (var k = 0; k < 6; k++) { setPair(rowOf(box, k), t[k]); }
+  var same = Math.abs(t[6] - t[7]) < 1e-9 && Math.abs(t[6] - t[8]) < 1e-9;
+  if (!same) { box.querySelector(".same").checked = false; }
+  setPair(rowOf(box, 6, "size_same"), t[6]);
+  for (k = 6; k < 9; k++) { setPair(rowOf(box, k, "size_each"), t[k]); }
+  box.querySelector(".mirror").checked = !!t[9];
+  showSizes(box);
 };
 
 var appendSpaceBox = function(t){
-  t = t || [0.5, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5];
-  var box = document.createElement("div");
-  box.className = "box_iteration";
-  var html = '<div class="box_title"><span class="box_name"></span>' +
-    '<button type="button" class="removeButton" title="Remove this transform">&times;</button></div>' +
-    '<table class="grid3"><tr><th></th><th>X</th><th>Y</th><th>Z</th></tr>';
-  ROWS3.forEach(function(row, r){
-    html += '<tr><th title="' + row.title + '">' + row.name + "</th>";
-    for (var a = 0; a < 3; a++){
-      html += '<td><input type="number" class="num" step="' + row.step + '"' +
-        (row.min !== undefined ? ' min="' + row.min + '"' : "") +
-        ' value="' + roundTo(Number(t[3 * r + a]) || 0, 4) + '" aria-label="' + row.name + " " + "XYZ"[a] + '"></td>';
-    }
-    html += "</tr>";
-  });
-  html += '</table><label class="mirror_label"><input type="checkbox" class="mirror"' +
-    (t[9] ? " checked" : "") + "> Mirrored</label>";
-  box.innerHTML = html;
-  byId("boxes").appendChild(box);
+  t = tidyTransform(t || [0.25, 0.25, 0.25, 0, 0, 0, 0.5, 0.5, 0.5, 0]);
+  var same = Math.abs(t[6] - t[7]) < 1e-9 && Math.abs(t[6] - t[8]) < 1e-9;
+  var html = '<div class="box_iteration">' +
+    '<p class="box_title"><span class="box_name"></span><a href="#" class="removeButton">remove</a></p>' +
+    '<table class="controls">' +
+      spaceRow("Move X", 0, t[0], -1, 2, 0.01) +
+      spaceRow("Move Y", 1, t[1], -1, 2, 0.01) +
+      spaceRow("Move Z", 2, t[2], -1, 2, 0.01) +
+      spaceRow("Turn X", 3, t[3], -180, 180, 1, "", "Second: tipped forward or back, in degrees") +
+      spaceRow("Turn Y", 4, t[4], -180, 180, 1, "", "Last: turned around the upright, in degrees") +
+      spaceRow("Turn Z", 5, t[5], -180, 180, 1, "", "First: tilted left or right, in degrees") +
+      spaceRow("Size", 6, t[6], 0, 1, 0.01, "size_same", "How much the copy shrinks") +
+      spaceRow("Size X", 6, t[6], 0, 1, 0.01, "size_each", "Width of the copy") +
+      spaceRow("Size Y", 7, t[7], 0, 1, 0.01, "size_each", "Height of the copy") +
+      spaceRow("Size Z", 8, t[8], 0, 1, 0.01, "size_each", "Depth of the copy") +
+      '<tr><td colspan="3">' +
+        '<label title="One size for width, height and depth"><input type="checkbox" class="same"' +
+          (same ? " checked" : "") + "> Same size on all sides</label><br>" +
+        '<label title="Flip the copy over before turning it"><input type="checkbox" class="mirror"' +
+          (t[9] ? " checked" : "") + "> Mirrored</label></td></tr>" +
+    "</table></div>";
+  byId("boxes").insertAdjacentHTML("beforeend", html);
+  var box = byId("boxes").lastElementChild;
+  showSizes(box);
   renumberBoxes();
+  return box;
 };
 
 var showSpaceTransforms = function(list){
   byId("boxes").innerHTML = "";
-  list.forEach(appendSpaceBox);
+  list.forEach(function(t){ appendSpaceBox(t); });
 };
 
 // ---- State, links and undo ----
@@ -118,18 +170,27 @@ var validTransform3 = function(t){
     t.every(function(v){ return typeof v === "number" && isFinite(v); });
 };
 
+var COLOURINGS3 = ["generation", "transform", "ink"];
+
 var readSpaceState = function(){
   return {
     transforms: readSpaceTransforms().map(compactTransform3),
+    repeat: Math.max(0, Math.round(readNumber(byId("repetition"), 3))),
+    last: byId("only_last").checked,
+    solid: byId("solid").checked,
+    dots: byId("draw_mode").value === "dots",
     colour: byId("colour_mode").value,
     palette: byId("palette").value,
     view: [roundTo(space.view.yaw, 1), roundTo(space.view.pitch, 1)]
   };
 };
 
+// r = repeat, l = last generation only, s = solid cubes, d = 1 for random dots,
 // c = colouring, p = colour scheme, v = yaw,pitch, t = transforms separated by ";".
 var encodeSpaceState = function(state){
-  return "c=" + state.colour + "&p=" + state.palette + "&v=" + state.view.join(",") +
+  return "r=" + state.repeat + "&l=" + (state.last ? 1 : 0) + "&s=" + (state.solid ? 1 : 0) +
+    (state.dots ? "&d=1" : "") + "&c=" + state.colour + "&p=" + state.palette +
+    "&v=" + state.view.join(",") +
     "&t=" + state.transforms.map(function(t){ return compactTransform3(t).join(","); }).join(";");
 };
 
@@ -137,14 +198,25 @@ var encodeSpaceState = function(state){
 var decodeSpaceState = function(hash){
   var text = String(hash || "").replace(/^#/, "");
   if (!text) { return null; }
-  var state = { transforms: null, colour: "depth", palette: "0", view: [DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch] };
+  var state = { transforms: null, repeat: 3, last: true, solid: true, dots: false,
+                colour: "generation", palette: "0", view: [DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch] };
   text.split("&").forEach(function(part){
     var eq = part.indexOf("="), key = part.slice(0, eq), value = decodeURIComponent(part.slice(eq + 1));
     if (key === "t"){
       var list = value ? value.split(";").map(function(s){ return s.split(",").map(Number); }) : [];
       state.transforms = list.every(validTransform3) ? list.slice(0, SPACE_MAX_TRANSFORMS) : null;
-    } else if (key === "c" && ["depth", "transform", "ink"].indexOf(value) >= 0){
-      state.colour = value;
+    } else if (key === "r"){
+      var r = parseInt(value, 10);
+      if (r >= 0) { state.repeat = Math.min(r, 60); }
+    } else if (key === "l"){
+      state.last = value === "1";
+    } else if (key === "s"){
+      state.solid = value !== "0";
+    } else if (key === "d"){
+      state.dots = value === "1";
+    } else if (key === "c"){
+      if (value === "depth") { value = "generation"; }   // older links
+      if (COLOURINGS3.indexOf(value) >= 0) { state.colour = value; }
     } else if (key === "p" && PALETTES[value]){
       state.palette = value;
     } else if (key === "v"){
@@ -157,6 +229,10 @@ var decodeSpaceState = function(hash){
 
 var applySpaceState = function(state){
   showSpaceTransforms(state.transforms);
+  byId("repetition").value = state.repeat;
+  byId("only_last").checked = state.last;
+  byId("solid").checked = state.solid;
+  byId("draw_mode").value = state.dots ? "dots" : "copies";
   byId("colour_mode").value = state.colour;
   byId("palette").value = state.palette;
   space.view.yaw = state.view[0];
@@ -166,8 +242,8 @@ var applySpaceState = function(state){
 };
 
 // Undo and redo go through the browser's history: each change of the figure
-// is one entry (a drag of a number is one change); turning the view only
-// updates the current entry.
+// is one entry (a drag is one change); turning the view only updates the
+// current entry.
 var history_index = 0, history_top = 0, history_timer = null;
 
 var saveHistory = function(push){
@@ -196,8 +272,15 @@ var updateUndoButtons = function(){
 };
 
 // ---- Drawing ----
+// The figure is drawn on a layer of its own, and the frames over it, so that
+// highlighting a frame does not draw the copies again.
 
 var draw_frame = null, dots_frame = null, dots_painted = 0;
+var layer = null, layer_key = "", geometry_key = "";
+var dragging_frame = false;
+// The camera is aimed at the figure only when asked (Fit, a preset, Random,
+// opening the page), so that changing a transform does not move the view.
+var need_fit = true;
 
 var canvasSize3 = function(){
   var figure = byId("figure");
@@ -211,11 +294,19 @@ var canvasSize3 = function(){
 var updateCount3 = function(){
   var text;
   if (!space.n) { text = "No transforms"; }
-  else if (space.failed) { text = "No dots: the point flies off (a transform does not shrink enough)"; }
-  else { text = formatCount(space.in_view) + " dots" + (space.done() ? "" : "…"); }
+  else if (space.draw_mode === "dots"){
+    text = space.failed ? "No dots: the point flies off (a transform does not shrink enough)" :
+      formatCount(space.in_view) + " dots" + (space.done() ? "" : "…");
+  } else {
+    var levels = space.visible_levels(), ls = space.level_start;
+    var count = ls[levels[1] + 1] - ls[levels[0]];
+    text = formatCount(count) + (count === 1 ? " cube" : " cubes");
+  }
   byId("point_count").textContent = text;
 };
 
+// Draw everything: the figure (again only if something it depends on
+// changed), then the frames.
 var paint3 = function(){
   var canvas = byId("similar_canvas");
   var size = canvasSize3(), dpr = window.devicePixelRatio || 1;
@@ -223,26 +314,60 @@ var paint3 = function(){
   canvas.style.width = size.w + "px";
   canvas.style.height = size.h + "px";
   if (canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
+  if (!layer) { layer = document.createElement("canvas"); }
+  if (layer.width !== w || layer.height !== h){ layer.width = w; layer.height = h; layer_key = ""; }
+  space.dpr = dpr;
+
+  // While a frame is dragged, fewer generations keep it smooth.
+  var repeat = Math.max(0, Math.round(readNumber(byId("repetition"), 3)));
+  space.repetition = dragging_frame ? Math.min(repeat, space.max_repetition(SPACE_PREVIEW_COPIES)) : repeat;
+  var gkey = JSON.stringify([space.transforms, space.repetition]);
+  if (space.draw_mode === "copies" && gkey !== geometry_key){
+    space.build();
+    geometry_key = gkey;
+  }
+  if (need_fit){
+    space.fit_bounds();
+    need_fit = false;
+  }
+
+  var lctx = layer.getContext("2d");
+  if (space.draw_mode === "dots"){
+    space.prepare(w, h, dpr);
+    if (space.failed || !space.n){
+      lctx.fillStyle = PAPER;
+      lctx.fillRect(0, 0, w, h);
+    } else {
+      space.render(lctx);
+    }
+    layer_key = "";
+  } else {
+    var key = JSON.stringify([gkey, space.only_last, space.solid, space.colour_mode, PAPER, COLOUR_TABLE[0],
+                              COLOUR_TABLE[255], space.view, space.centre, space.radius, w, h]);
+    if (key !== layer_key){
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.fillStyle = PAPER;
+      lctx.fillRect(0, 0, w, h);
+      space.paint_copies(lctx, w, h, dpr);
+      layer_key = key;
+    }
+  }
   var ctx = canvas.getContext("2d");
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  space.prepare(w, h, dpr);
-  if (space.failed || !space.n){
-    ctx.fillStyle = PAPER;
-    ctx.fillRect(0, 0, w, h);
-  } else {
-    space.render(ctx);
-  }
+  ctx.drawImage(layer, 0, 0);
+  if (space.draw_mode === "dots" && !space.cam) { space.cam = space.camera(w, h, dpr); }
+  space.paint_frames(ctx, dpr);
   updateCount3();
 };
 
-// Keep adding dots, a batch per frame; the picture is redrawn every few
-// batches (and at the end), as that costs more than placing the dots.
+// Random dots: keep adding dots, a batch per frame; the picture is redrawn
+// every few batches (and at the end), as that costs more than placing them.
 var moreDots3 = function(){
-  if (dots_frame !== null) { return; }
+  if (dots_frame !== null || space.draw_mode !== "dots") { return; }
   dots_painted = performance.now();
   dots_frame = requestAnimationFrame(function step(){
     dots_frame = null;
-    if (space.done()) { return; }
+    if (space.draw_mode !== "dots" || space.done()) { return; }
     space.run(SPACE_STEP_MS);
     if (space.done() || performance.now() - dots_painted > 150){
       paint3();
@@ -277,8 +402,7 @@ var updateDimension3 = function(){
 // The preset list shows the figure last picked, marked when it was changed since.
 var current_preset = -1;
 var updatePresetLabel = function(){
-  var select = byId("preset");
-  var placeholder = select.options[0];
+  var select = byId("preset"), placeholder = select.options[0];
   if (current_preset < 0){
     placeholder.textContent = "Presets";
   } else {
@@ -290,9 +414,32 @@ var updatePresetLabel = function(){
   select.value = "";
 };
 
-// The transforms changed (push: as a step that can be undone).
+// Repeat within what can be calculated, with a note when it is held back.
+var clampRepeat = function(){
+  var input = byId("repetition"), most = space.max_repetition();
+  var r = Math.max(0, Math.round(readNumber(input, 3)));
+  var note = "";
+  if (space.draw_mode === "copies" && r > most){
+    r = most;
+    note = "At most " + most + " generations for this figure (" + formatCount(space.number_copies(most)) + " cubes).";
+  }
+  if (String(r) !== input.value) { input.value = r; }
+  input.max = most;
+  byId("limit_warning").textContent = note;
+};
+
+// The figure changed (push: as a step that can be undone).
 var figureChanged = function(push){
   space.set_transforms(readSpaceTransforms());
+  space.draw_mode = byId("draw_mode").value;
+  space.only_last = byId("only_last").checked;
+  space.solid = byId("solid").checked;
+  var dots = space.draw_mode === "dots";
+  Array.prototype.forEach.call(document.querySelectorAll(".copies_only"), function(el){
+    el.classList.toggle("unused", dots);
+    Array.prototype.forEach.call(el.querySelectorAll("input, button"), function(c){ c.disabled = dots; });
+  });
+  clampRepeat();
   updateDimension3();
   updatePresetLabel();
   byId("addTransform").disabled = spaceBoxes().length >= SPACE_MAX_TRANSFORMS;
@@ -312,13 +459,15 @@ var applyPalette = function(){
   setColours(p.stops[0], p.stops[1], p.stops[2], p.paper);
   byId("similar_canvas").style.background = PAPER;
   space.colour_mode = byId("colour_mode").value;
-  try { localStorage.setItem("similar-fractal-3d.display", JSON.stringify({ palette: byId("palette").value, colour: space.colour_mode })); }
-  catch (e) { /* not kept: fine */ }
-  if (space.hits) { paint3(); }
+  try {
+    localStorage.setItem("similar-fractal-3d.display",
+      JSON.stringify({ palette: byId("palette").value, colour: space.colour_mode }));
+  } catch (e) { /* not kept: fine */ }
+  redraw();
 };
 
 // A random figure: three to six copies, each a third to a half the size,
-// somewhere in the unit box, sometimes turned or squashed.
+// somewhere in the unit cube, sometimes turned or squashed.
 var randomSpace = function(){
   var n = 3 + Math.floor(Math.random() * 4), out = [];
   var pick = function(list){ return list[Math.floor(Math.random() * list.length)]; };
@@ -327,7 +476,7 @@ var randomSpace = function(){
     var squash = Math.random() < 0.3 ? roundTo(size * (0.5 + Math.random() * 0.5), 2) : size;
     out.push([
       roundTo(Math.random() * (1 - size), 2), roundTo(Math.random() * (1 - size), 2), roundTo(Math.random() * (1 - size), 2),
-      Math.random() < 0.5 ? 0 : pick([15, 30, 45, 90, -30]),
+      Math.random() < 0.6 ? 0 : pick([15, 30, 45, -30]),
       Math.random() < 0.5 ? 0 : pick([30, 45, 60, 90, 120, 180]),
       Math.random() < 0.6 ? 0 : pick([15, 30, 45, -45]),
       size, squash, size, Math.random() < 0.15 ? 1 : 0
@@ -336,7 +485,7 @@ var randomSpace = function(){
   return out;
 };
 
-// ---- Turning, moving and zooming the view ----
+// ---- The view ----
 
 var setView = function(yaw, pitch){
   space.view.yaw = yaw;
@@ -345,14 +494,14 @@ var setView = function(yaw, pitch){
 };
 
 var fitView = function(){
+  need_fit = true;
   space.view.zoom = 1;
   space.view.pan_x = 0;
   space.view.pan_y = 0;
   viewChanged();
 };
 
-// Zoom by factor f, keeping the point under (mx, my) (CSS pixels from the
-// canvas's corner) where it is.
+// Zoom by factor f, keeping the point under (mx, my) (CSS pixels on the canvas) where it is.
 var zoomView = function(f, mx, my){
   var canvas = byId("similar_canvas");
   var v = space.view, z = Math.max(0.2, Math.min(50, v.zoom * f));
@@ -364,37 +513,108 @@ var zoomView = function(f, mx, my){
   viewChanged();
 };
 
+var setHover = function(index){
+  if (space.hover_index === index) { return; }
+  space.hover_index = index;
+  spaceBoxes().forEach(function(box, i){ box.classList.toggle("hovered", i === index); });
+  redraw();
+};
+
+var toggleHandles = function(){
+  space.show_handles = !space.show_handles;
+  byId("toggleHandles").textContent = space.show_handles ? "Hide transforms" : "Show transforms";
+  if (!space.show_handles) { setHover(-1); }
+  redraw();
+};
+
+// ---- Mouse and fingers on the figure ----
+// On a frame: drag it (move), its round dot (turn and resize) or its square
+// dot (tilt). Elsewhere: turn the view; Shift-drag or two fingers move it;
+// the wheel or a pinch zooms.
+
 var viewGestures = function(){
   var canvas = byId("similar_canvas");
-  var pointers = new Map(), last = null;
+  var pointers = new Map(), last = null, drag = null;
 
   var pointer = function(e){
     var r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    return { x: e.clientX - r.left - canvas.clientLeft, y: e.clientY - r.top - canvas.clientTop };
   };
   var spread = function(){
     var p = Array.from(pointers.values());
     return { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
   };
+  var endFrameDrag = function(){
+    if (!drag) { return; }
+    drag = null;
+    dragging_frame = false;
+    space.hold = false;
+    canvas.classList.remove("dragging");
+    figureChanged(false);
+    // Each drag is one step to undo, as soon as it ends.
+    clearTimeout(history_timer);
+    saveHistory(true);
+  };
 
   canvas.addEventListener("pointerdown", function(e){
     canvas.setPointerCapture(e.pointerId);
-    pointers.set(e.pointerId, pointer(e));
+    var p = pointer(e);
+    pointers.set(e.pointerId, p);
+    e.preventDefault();
+    if (pointers.size === 1 && !e.shiftKey && e.button === 0){
+      var hit = space.handle_at(p.x, p.y, e.pointerType === "touch" ? 14 : 0);
+      if (hit){
+        var t = readSpaceTransforms()[hit.index];
+        var xs = new Float64Array(8), ys = new Float64Array(8), zs = new Float64Array(8);
+        space.frame(hit.index, space.cam, xs, ys, zs);
+        var dpr = space.dpr || 1;
+        drag = { part: hit.part, index: hit.index, t: t, cam: space.cam, start: p,
+                 o: [xs[0] / dpr, ys[0] / dpr], p0: [xs[1] / dpr, ys[1] / dpr] };
+        dragging_frame = true;
+        space.hold = true;
+        setHover(hit.index);
+        canvas.classList.add("dragging");
+        return;
+      }
+    }
+    if (drag) { endFrameDrag(); }
     last = pointers.size === 2 ? spread() : null;
     canvas.classList.add("dragging");
-    e.preventDefault();
   });
+
   canvas.addEventListener("pointermove", function(e){
-    if (!pointers.has(e.pointerId)) { return; }
-    var before = pointers.get(e.pointerId), now = pointer(e);
-    pointers.set(e.pointerId, now);
+    var p = pointer(e);
+    if (!pointers.has(e.pointerId)){
+      // Only hovering: highlight the frame under the mouse.
+      if (e.pointerType === "mouse"){
+        var hit = space.handle_at(p.x, p.y, 0);
+        setHover(hit ? hit.index : -1);
+        canvas.style.cursor = hit ? (hit.part === "move" ? "move" : "crosshair") : "";
+        canvas.title = !hit ? "" :
+          hit.part === "corner" ? "Round dot: drag to turn and resize T" + (hit.index + 1) :
+          hit.part === "tilt" ? "Square dot: drag to tilt T" + (hit.index + 1) :
+          "Drag to move T" + (hit.index + 1);
+      }
+      return;
+    }
+    var before = pointers.get(e.pointerId);
+    pointers.set(e.pointerId, p);
+    if (drag){
+      var t;
+      if (drag.part === "move") { t = dragMove(drag.t, drag.cam, p.x - drag.start.x, p.y - drag.start.y, space.dpr || 1); }
+      else if (drag.part === "corner") { t = dragTurn(drag.t, drag.cam, drag.o, drag.p0, [p.x, p.y]); }
+      else { t = dragTilt(drag.t, drag.cam, p.x - drag.start.x, p.y - drag.start.y); }
+      setBox(spaceBoxes()[drag.index], t);
+      figureChanged(false);
+      return;
+    }
     var v = space.view;
     if (pointers.size === 1){
-      var dx = now.x - before.x, dy = now.y - before.y;
+      var dx = p.x - before.x, dy = p.y - before.y;
       if (e.shiftKey || e.buttons === 2 || e.buttons === 4){
-        v.pan_x += dx; v.pan_y += dy;          // move the figure
+        v.pan_x += dx; v.pan_y += dy;
       } else {
-        v.yaw += dx * 0.4;                      // turn it
+        v.yaw += dx * 0.4;
         v.pitch = Math.max(-90, Math.min(90, v.pitch + dy * 0.4));
       }
       viewChanged();
@@ -405,13 +625,17 @@ var viewGestures = function(){
       last = s;
     }
   });
+
   var up = function(e){
     pointers.delete(e.pointerId);
+    if (drag && !pointers.size) { endFrameDrag(); }
     last = pointers.size === 2 ? spread() : null;
     if (!pointers.size) { canvas.classList.remove("dragging"); }
+    if (e.pointerType !== "mouse" && !pointers.size) { setHover(-1); }
   };
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);
+  canvas.addEventListener("pointerleave", function(e){ if (e.pointerType === "mouse" && !drag) { setHover(-1); } });
   canvas.addEventListener("contextmenu", function(e){ e.preventDefault(); });
   canvas.addEventListener("wheel", function(e){
     e.preventDefault();
@@ -421,6 +645,138 @@ var viewGestures = function(){
 };
 
 // ---- Starting the page ----
+
+var panelEvents = function(){
+  var boxes = byId("boxes");
+  // A number and its slider stay together.
+  boxes.addEventListener("input", function(e){
+    var row = e.target.closest("tr.row");
+    if (row){
+      var other = row.querySelector(e.target.classList.contains("slider") ? ".number_slide" : ".slider");
+      other.value = e.target.value;
+    }
+    figureChanged(true);
+  });
+  boxes.addEventListener("change", function(e){
+    if (e.target.classList.contains("same")){
+      var box = e.target.closest(".box_iteration");
+      // Switching between one size and three keeps the size the copy has now.
+      if (e.target.checked){
+        setPair(rowOf(box, 6, "size_same"), readNumber(rowOf(box, 6, "size_each").querySelector(".number_slide"), 0.5));
+      } else {
+        var s = readNumber(rowOf(box, 6, "size_same").querySelector(".number_slide"), 0.5);
+        for (var k = 6; k < 9; k++) { setPair(rowOf(box, k, "size_each"), s); }
+      }
+      showSizes(box);
+    }
+    figureChanged(true);
+  });
+  boxes.addEventListener("click", function(e){
+    if (e.target.classList.contains("removeButton")){
+      e.preventDefault();
+      e.target.closest(".box_iteration").remove();
+      renumberBoxes();
+      setHover(-1);
+      figureChanged(true);
+    }
+  });
+  // A box and its frame are highlighted together.
+  boxes.addEventListener("mouseover", function(e){
+    var box = e.target.closest(".box_iteration");
+    if (box) { setHover(spaceBoxes().indexOf(box)); }
+  });
+  boxes.addEventListener("mouseleave", function(){ setHover(-1); });
+
+  byId("addTransform").addEventListener("click", function(){
+    if (spaceBoxes().length >= SPACE_MAX_TRANSFORMS) { return; }
+    appendSpaceBox();
+    figureChanged(true);
+  });
+  byId("randomTransforms").addEventListener("click", function(){
+    current_preset = -1;
+    showSpaceTransforms(randomSpace());
+    byId("repetition").value = 4;
+    figureChanged(true);
+    fitView();
+  });
+  var preset = byId("preset");
+  preset.addEventListener("change", function(){
+    var i = Number(preset.value);
+    if (!SPACE_PRESETS[i]) { return; }
+    current_preset = i;
+    showSpaceTransforms(SPACE_PRESETS[i].t);
+    byId("repetition").value = SPACE_PRESETS[i].repeat;
+    if (SPACE_PRESETS[i].dots) { byId("draw_mode").value = "dots"; }
+    figureChanged(true);
+    fitView();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".repeat_box .step"), function(button){
+    button.addEventListener("click", function(){
+      var input = byId("repetition");
+      input.value = Math.max(0, Math.round(readNumber(input, 3)) + Number(button.dataset.step));
+      figureChanged(true);
+    });
+  });
+  byId("repetition").addEventListener("input", function(){ figureChanged(true); });
+  ["only_last", "solid"].forEach(function(id){
+    byId(id).addEventListener("change", function(){ figureChanged(true); });
+  });
+  byId("draw_mode").addEventListener("change", function(){ figureChanged(true); need_fit = true; });
+  byId("colour_mode").addEventListener("change", function(){ applyPalette(); scheduleHistory(false); });
+  byId("palette").addEventListener("change", function(){ applyPalette(); scheduleHistory(false); });
+
+  byId("viewFront").addEventListener("click", function(){ setView(0, 0); });
+  byId("viewSide").addEventListener("click", function(){ setView(-90, 0); });
+  byId("viewTop").addEventListener("click", function(){ setView(0, 90); });
+  byId("viewTurned").addEventListener("click", function(){ setView(DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch); });
+  byId("viewFit").addEventListener("click", fitView);
+  byId("figureFit").addEventListener("click", fitView);
+  byId("toggleHandles").addEventListener("click", toggleHandles);
+  byId("savePng").addEventListener("click", function(){
+    // The picture without the frames.
+    var keep = space.show_handles;
+    space.show_handles = false;
+    paint3();
+    byId("similar_canvas").toBlob(function(blob){
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "similar-fractal-3d.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    }, "image/png");
+    space.show_handles = keep;
+    redraw();
+  });
+  byId("undoButton").addEventListener("click", function(){ if (history_index > 0) { history.back(); } });
+  byId("redoButton").addEventListener("click", function(){ if (history_index < history_top) { history.forward(); } });
+
+  document.addEventListener("keydown", function(e){
+    var typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+    if ((e.ctrlKey || e.metaKey) && !typing){
+      var key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey && history_index > 0) { e.preventDefault(); history.back(); }
+      if ((key === "y" || (key === "z" && e.shiftKey)) && history_index < history_top) { e.preventDefault(); history.forward(); }
+      return;
+    }
+    if (typing || e.ctrlKey || e.metaKey || e.altKey) { return; }
+    var canvas = byId("similar_canvas");
+    if (e.key === "h" || e.key === "H") { toggleHandles(); }
+    if (e.key === "+" || e.key === "=") { zoomView(1.25, canvas.clientWidth / 2, canvas.clientHeight / 2); }
+    if (e.key === "-" || e.key === "_") { zoomView(0.8, canvas.clientWidth / 2, canvas.clientHeight / 2); }
+  });
+  window.addEventListener("popstate", function(e){
+    var state = decodeSpaceState(location.hash);
+    if (!state) { return; }
+    history_index = e.state && typeof e.state.i === "number" ? e.state.i : 0;
+    clearTimeout(history_timer);
+    current_preset = -1;
+    applySpaceState(state);
+    updateUndoButtons();
+  });
+  window.addEventListener("resize", redraw);
+};
 
 var startSpacePage = function(){
   var palette = byId("palette");
@@ -441,76 +797,11 @@ var startSpacePage = function(){
   try {
     var kept = JSON.parse(localStorage.getItem("similar-fractal-3d.display"));
     if (kept && PALETTES[kept.palette]) { palette.value = String(kept.palette); }
-    if (kept && ["depth", "transform", "ink"].indexOf(kept.colour) >= 0) { byId("colour_mode").value = kept.colour; }
+    if (kept && COLOURINGS3.indexOf(kept.colour) >= 0) { byId("colour_mode").value = kept.colour; }
   } catch (e) { /* none */ }
   if (!palette.value) { palette.value = "0"; }
 
-  preset.addEventListener("change", function(){
-    var i = Number(preset.value);
-    if (!SPACE_PRESETS[i]) { return; }
-    current_preset = i;
-    showSpaceTransforms(SPACE_PRESETS[i].t);
-    space.view.zoom = 1; space.view.pan_x = 0; space.view.pan_y = 0;
-    figureChanged(true);
-  });
-  var boxes = byId("boxes");
-  boxes.addEventListener("input", function(){ figureChanged(true); });
-  boxes.addEventListener("change", function(){ figureChanged(true); });
-  boxes.addEventListener("click", function(e){
-    if (e.target.classList.contains("removeButton")){
-      e.target.closest(".box_iteration").remove();
-      renumberBoxes();
-      figureChanged(true);
-    }
-  });
-  byId("addTransform").addEventListener("click", function(){
-    if (spaceBoxes().length >= SPACE_MAX_TRANSFORMS) { return; }
-    appendSpaceBox();
-    figureChanged(true);
-  });
-  byId("randomTransforms").addEventListener("click", function(){
-    current_preset = -1;
-    showSpaceTransforms(randomSpace());
-    fitView();
-    figureChanged(true);
-  });
-  byId("colour_mode").addEventListener("change", function(){ applyPalette(); scheduleHistory(false); });
-  palette.addEventListener("change", function(){ applyPalette(); scheduleHistory(false); });
-  byId("viewFront").addEventListener("click", function(){ setView(0, 0); });
-  byId("viewSide").addEventListener("click", function(){ setView(-90, 0); });
-  byId("viewTop").addEventListener("click", function(){ setView(0, 90); });
-  byId("viewTurned").addEventListener("click", function(){ setView(DEFAULT_VIEW.yaw, DEFAULT_VIEW.pitch); });
-  byId("figureFit").addEventListener("click", fitView);
-  byId("viewFit").addEventListener("click", fitView);
-  byId("savePng").addEventListener("click", function(){
-    byId("similar_canvas").toBlob(function(blob){
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "similar-fractal-3d.png";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-    }, "image/png");
-  });
-  byId("undoButton").addEventListener("click", function(){ if (history_index > 0) { history.back(); } });
-  byId("redoButton").addEventListener("click", function(){ if (history_index < history_top) { history.forward(); } });
-  document.addEventListener("keydown", function(e){
-    if (!(e.ctrlKey || e.metaKey) || e.target.tagName === "INPUT") { return; }
-    var key = e.key.toLowerCase();
-    if (key === "z" && !e.shiftKey && history_index > 0) { e.preventDefault(); history.back(); }
-    if ((key === "y" || (key === "z" && e.shiftKey)) && history_index < history_top) { e.preventDefault(); history.forward(); }
-  });
-  window.addEventListener("popstate", function(e){
-    var state = decodeSpaceState(location.hash);
-    if (!state) { return; }
-    history_index = e.state && typeof e.state.i === "number" ? e.state.i : 0;
-    clearTimeout(history_timer);
-    current_preset = -1;
-    applySpaceState(state);
-    updateUndoButtons();
-  });
-  window.addEventListener("resize", redraw);
+  panelEvents();
   viewGestures();
 
   // The figure in the link, or the first preset.
@@ -522,6 +813,7 @@ var startSpacePage = function(){
     space.view.yaw = DEFAULT_VIEW.yaw;
     space.view.pitch = DEFAULT_VIEW.pitch;
     showSpaceTransforms(SPACE_PRESETS[0].t);
+    byId("repetition").value = SPACE_PRESETS[0].repeat;
     applyPalette();
     figureChanged(false);
   }

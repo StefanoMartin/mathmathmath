@@ -625,38 +625,7 @@ button, a, select, label {
   }
 }
 
-/* ---- The 3D page: each transform is a small grid of Move, Turn and Size by X, Y, Z ---- */
-
-table.grid3 {
-  border-collapse: collapse;
-  margin: 2px 0 4px;
-}
-
-table.grid3 th {
-  padding: 1px 6px 1px 0;
-  font-weight: normal;
-  text-align: left;
-}
-
-table.grid3 tr:first-child th {
-  font-style: italic;
-  text-align: center;
-  color: #5a564c;
-}
-
-table.grid3 td {
-  padding: 1px 2px;
-}
-
-table.grid3 input.num {
-  width: 62px;
-  padding: 1px 3px;
-  font: 13px "Courier New", Courier, monospace;
-  color: #222;
-  background: #fbf9f3;
-  border: 1px solid #8c8676;
-  border-radius: 0;
-}
+/* ---- The 3D page ---- */
 
 .space_page #similar_canvas {
   cursor: grab;

@@ -51,22 +51,27 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
 
 ### Figures in 3D
 
-`3d.html` (linked from the main page as *3D figures*) does the same in space.
-Each transform moves the figure (X, Y, Z), turns it (tilted around Z, then X,
-then turned around the upright Y, in degrees), resizes it along each side and
-may mirror it. The figure is drawn with millions of random dots: for each
-pixel only the nearest dot is kept, the way the surface faces is worked out
-from those depths, and it is lit from the upper left, while the far parts fade
-into the paper.
+`3d.html` (linked from the main page as *3D figures*) does the same in space,
+starting from a cube instead of a square.
 
+- **Generations** – Repeat (with − and +) copies the cube generation after
+  generation; *Last generation only* off shows the earlier generations as
+  outlines around the last. The copies are drawn as *solid cubes*, lit from
+  the upper left (the nearer ones drawn over the farther), or as outlines.
+- **Transforms** – each moves the cube (Move X, Y, Z), turns it (tilted around
+  Z, then X, then turned around the upright Y, in degrees) and resizes it, with
+  one size for all sides or a size along each; it can also be mirrored. Every
+  value has a number field and a slider.
+- **On the figure** – each transform's frame (its copy of the cube) is drawn in
+  green, named T1, T2… and highlighted together with its box: drag the frame
+  to move it, its round dot to turn and resize it, and its square dot to tilt
+  it. Drag the paper around the figure to turn the view, Shift-drag (or two
+  fingers) to move it, scroll or pinch to zoom; H hides the frames.
+- **Random dots** – as on the main page, as another way to draw the figure
+  (the fern is drawn this way).
 - **Presets** – Menger sponge, Sierpinski tetrahedron and pyramid, octahedron
   flake, cross of crosses, Cantor dust, a fern and a tree.
-- **Turning the view** – drag the figure to turn it, Shift-drag (or two
-  fingers) to move it, scroll or pinch to zoom; Front, Side, Top and Turned
-  views; Fit.
-- **Colouring** – by depth, by transform, or one ink, with the same colour
-  schemes as the flat figures.
-- **Dimension, Random, undo, links and PNG** – as on the main page.
+- **Colouring, dimension, Random, undo, links and PNG** – as on the main page.
 
 ## Running it locally
 
@@ -111,9 +116,9 @@ npm run test:browser
 | `tests/unit/state.test.js` | Links read back the same, bad links are refused, favourites are cleaned, presets are valid, the zoom readout |
 | `tests/e2e/app.spec.js` | The page on a desktop: everything a person does with it |
 | `tests/e2e/phone.spec.js` | The page on a phone: layout, pinch, two-finger move, dragging with a finger |
-| `tests/unit/space.test.js` | 3D: transforms in space, fixed points, the dimension, presets, dots on the figure, the camera, the depth buffer, links |
-| `tests/e2e/space.spec.js` | The 3D page on a desktop: editing, undo, turning and zooming, colouring, links, Random, PNG |
-| `tests/e2e/space-phone.spec.js` | The 3D page on a phone: layout, turning with a finger, pinch |
+| `tests/unit/space.test.js` | 3D: transforms in space, turns read back, generations of cubes, the camera and its fit, dragging frames, finding them, visible faces, random dots, links |
+| `tests/e2e/space.spec.js` | The 3D page on a desktop: generations, the panel, dragging frames and their dots, turning and zooming, random dots, links, Random, PNG |
+| `tests/e2e/space-phone.spec.js` | The 3D page on a phone: layout, turning the view and dragging a frame with a finger, pinch |
 
 ## Files
 
@@ -135,8 +140,8 @@ npm run test:browser
 | `javascript/gestures.js` | Mouse and touch on the figure: zoom, pan, pinch, dragging the frames |
 | `javascript/main.js` | Starts the page (loaded last) |
 | `3d.html` | The 3D page |
-| `javascript/space.js` | The 3D engine: transforms in space, random dots with a depth buffer, the camera, lighting |
-| `javascript/space-page.js` | The 3D page: presets, transform boxes, links and undo, turning and zooming the view |
+| `javascript/space.js` | The 3D engine: transforms in space, generations of cubes, solid and outline drawing, the frames, random dots, the camera |
+| `javascript/space-page.js` | The 3D page: presets, transform boxes, links and undo, dragging frames, turning and zooming the view |
 
 ## How it works
 

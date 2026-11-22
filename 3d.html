@@ -19,32 +19,57 @@
     <div id="panel">
       <h1>Similar Fractal 3D</h1>
       <p class="intro">
-        The same idea in space: each transform below moves, turns and resizes
-        the whole figure, and the figure is every copy of itself. It is drawn
-        with millions of random dots, lit from the upper left.
+        A cube is copied by each transform below: moved, turned and shrunk.
+        The copies are copied again, generation after generation.
         <a href="index.html">Flat figures</a>
       </p>
 
       <fieldset>
-        <legend>Figure</legend>
+        <legend>Generations</legend>
+        <table class="controls">
+          <colgroup><col class="col_label"><col class="col_number"><col></colgroup>
+          <tr>
+            <th>Draw</th>
+            <td colspan="2" class="wide">
+              <select id="draw_mode" title="Copy the cube generation after generation, or let one point jump about at random and leave a dot wherever it lands">
+                <option value="copies" selected>Copies of the cube</option>
+                <option value="dots">Random dots</option>
+              </select>
+            </td>
+          </tr>
+          <tr class="row copies_only">
+            <th>Repeat</th>
+            <td colspan="2" class="wide">
+              <div class="repeat_box">
+                <input class="number_slide" type="number" value="3" min="0" id="repetition">
+                <button type="button" class="step" data-step="-1" title="One generation less">&minus;</button><button type="button" class="step" data-step="1" title="One generation more">+</button>
+              </div>
+            </td>
+          </tr>
+        </table>
+        <p id="limit_warning" class="limit_warning"></p>
+        <label class="copies_only"><input type="checkbox" id="only_last" checked> Last generation only</label><br>
+        <label class="copies_only" title="Solid lit cubes, or only their edges"><input type="checkbox" id="solid" checked> Solid cubes</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Transforms</legend>
         <p class="preset">
           <select id="preset" title="Classic figures in space">
             <option value="" disabled selected hidden>Presets</option>
           </select>
         </p>
-      </fieldset>
-
-      <fieldset>
-        <legend>Transforms</legend>
-        <p class="hint">
-          Move: where the copy goes. Turn: tilted around Z, then X, then turned
-          around the upright Y, in degrees. Size: how much it shrinks along
-          each side (the figure is held in a box of side about 1).
-        </p>
-        <div id="boxes"></div>
+        <div id="boxes" class="boxes"></div>
         <p class="buttons">
           <button type="button" id="addTransform" title="Add a transform">Add</button>
           <button type="button" id="randomTransforms" title="A random figure">Random</button>
+        </p>
+        <p class="hint">
+          Turn: tilted around Z, then X, then turned around the upright Y, in degrees.
+          <span class="for_mouse">On the figure, drag a green frame to move it; drag its round dot
+          to turn and resize it, and its square dot to tilt it.</span>
+          <span class="for_touch">On the figure, drag a green frame with a finger to move it; drag its
+          round dot to turn and resize it, and its square dot to tilt it.</span>
         </p>
       </fieldset>
 
@@ -54,8 +79,8 @@
           <tr>
             <th>Colouring</th>
             <td class="wide">
-              <select id="colour_mode" title="How the figure is coloured">
-                <option value="depth" selected>By depth</option>
+              <select id="colour_mode" title="How the copies are coloured">
+                <option value="generation" selected>By generation</option>
                 <option value="transform">By transform</option>
                 <option value="ink">One ink</option>
               </select>
@@ -78,9 +103,8 @@
           <button type="button" id="viewFit" title="Show the whole figure">Fit</button>
         </p>
         <p class="hint">
-          <span class="for_mouse">Drag the figure to turn it, Shift-drag to move it, scroll to zoom.</span>
-          <span class="for_touch">Drag the figure to turn it, pinch to zoom, drag with two fingers to move it.</span>
-          Fit shows the whole figure again.
+          <span class="for_mouse">Drag the paper around the figure to turn it, Shift-drag to move it, scroll (or + and &minus;) to zoom. H hides the frames.</span>
+          <span class="for_touch">Drag the paper around the figure to turn it, pinch to zoom, drag with two fingers to move it.</span>
         </p>
         <p class="buttons">
           <button type="button" id="savePng" title="Save the current view as a picture">Save PNG</button>
@@ -96,6 +120,8 @@
         <button type="button" id="undoButton" class="figure_button" title="Undo (Ctrl+Z, or the browser's Back)" disabled>&#8630;</button>
         <button type="button" id="redoButton" class="figure_button" title="Redo (Ctrl+Y, or the browser's Forward)" disabled>&#8631;</button>
         <button type="button" id="figureFit" class="figure_button" title="Show the whole figure">Fit</button>
+        <button type="button" id="toggleHandles" class="figure_button"
+          title="Show or hide the frames of the transforms (key H)">Hide transforms</button>
       </div>
     </div>
   </body>
