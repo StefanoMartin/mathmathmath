@@ -8,13 +8,13 @@ body.notes_page {
   background: #fbf9f3;
 }
 
+/* The text is at most 880 px wide, centred in the space beside the panel. */
 #notes_main {
   margin-left: 320px;
-  padding: 6px 40px 60px;
+  padding: 6px max(40px, calc((100vw - 320px - 880px) / 2)) 60px;
 }
 
 .notes {
-  max-width: 46em;
   font-size: 17px;
   line-height: 1.55;
 }
@@ -250,7 +250,8 @@ figure.diagram .corner { fill: #2f6b3a; }
   gap: 4px;
   align-items: center;
   justify-content: center;
-  min-height: 150px;
+  height: 190px;
+  box-sizing: border-box;
   padding: 6px;
   background: #fffdf8;
   border: 1px solid #d6d0c0;
@@ -267,8 +268,17 @@ figure.diagram .corner { fill: #2f6b3a; }
 
 .gallery .pic img {
   margin: 0 auto;
-  max-height: 190px;
+  max-height: 160px;
+  max-width: 100%;
   width: auto;
+}
+
+.gallery.wide .pics {
+  height: 220px;
+}
+
+.gallery.wide .pic img {
+  max-height: 172px;
 }
 
 .gallery figcaption {
