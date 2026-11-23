@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="css/notes.css">
   </head>
   <body class="notes_page">
-    <header class="notes_header">
+    <div id="panel">
       <h1>Similar Fractal</h1>
       <nav class="page_tabs" aria-label="Pages">
         <a href="index.html" title="Flat figures, from a shape">2D</a>
@@ -17,9 +17,64 @@
         <a href="4d.html" title="Figures in four dimensions, from a tesseract">4D</a>
         <a href="notes.html" aria-current="page" title="How it works: the mathematics behind the pages">Notes</a>
       </nav>
-    </header>
+      <p class="intro">
+        The mathematics behind the three pages, step by step: from moving a
+        square across the plane to figures in four dimensions.
+      </p>
 
-    <main class="notes">
+      <fieldset>
+        <legend>Contents</legend>
+        <nav class="contents" aria-label="Contents">
+          <ol>
+            <li><a href="#moving">Moving the plane</a>
+            <ol>
+              <li><a href="#translations">Translations</a></li>
+              <li><a href="#linear-maps-and-matrices">Linear maps and matrices</a></li>
+              <li><a href="#affine-maps-and-why-the-order-matters">Affine maps, and why the order matters</a></li>
+              <li><a href="#the-transform-boxes-of-the-2d-page">The transform boxes of the 2D page</a></li>
+            </ol>
+            </li>
+            <li><a href="#shrinking">Shrinking: contractions and fixed points</a></li>
+            <li><a href="#ifs">Many copies: iterated function systems</a></li>
+            <li><a href="#fractal-dimension">Dimension</a>
+            <ol>
+              <li><a href="#self-similar-figures">Self-similar figures</a></li>
+              <li><a href="#self-affine-figures">Self-affine figures</a></li>
+            </ol>
+            </li>
+            <li><a href="#chaos">The chaos game</a></li>
+            <li><a href="#presets2d">The flat presets</a></li>
+            <li><a href="#space">Three dimensions</a>
+            <ol>
+              <li><a href="#turning-in-space">Turning in space</a></li>
+              <li><a href="#seeing-it-on-a-flat-screen">Seeing it on a flat screen</a></li>
+              <li><a href="#the-presets-in-space">The presets in space</a></li>
+            </ol>
+            </li>
+            <li><a href="#hyper">Four dimensions</a>
+            <ol>
+              <li><a href="#the-tesseract">The tesseract</a></li>
+              <li><a href="#turning-in-four-dimensions">Turning in four dimensions</a></li>
+              <li><a href="#seeing-four-dimensions">Seeing four dimensions</a></li>
+            </ol>
+            </li>
+            <li><a href="#presets4d">The four-dimensional presets</a></li>
+            <li><a href="#reading">Further reading</a></li>
+          </ol>
+        </nav>
+      </fieldset>
+
+      <fieldset>
+        <legend>About these notes</legend>
+        <p class="hint">
+          Each step uses only the one before it. The pictures were made with
+          the app: a click on one opens that figure there. The formulas are
+          written in LaTeX and drawn by the browser.
+        </p>
+      </fieldset>
+    </div>
+
+    <main class="notes" id="notes_main">
       <h2 class="notes_title">Notes on self-similar fractals</h2>
       <p class="lead">
         From moving a square across the plane to figures in four dimensions:
@@ -28,20 +83,6 @@
         and a click on most of them opens that figure there.
       </p>
 
-      <nav class="contents" aria-label="Contents">
-        <ol>
-          <li><a href="#moving">Moving the plane</a></li>
-          <li><a href="#shrinking">Shrinking: contractions and fixed points</a></li>
-          <li><a href="#ifs">Many copies: iterated function systems</a></li>
-          <li><a href="#fractal-dimension">Dimension</a></li>
-          <li><a href="#chaos">The chaos game</a></li>
-          <li><a href="#presets2d">The flat presets</a></li>
-          <li><a href="#space">Three dimensions</a></li>
-          <li><a href="#hyper">Four dimensions</a></li>
-          <li><a href="#presets4d">The four-dimensional presets</a></li>
-          <li><a href="#reading">Further reading</a></li>
-        </ol>
-      </nav>
 
       <!-- ================================================================ -->
       <section id="moving">
@@ -56,7 +97,7 @@
           <math><semantics><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mn>1,0</mn><mo fence="true" form="postfix" stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">(1,0)</annotation></semantics></math>, <math><semantics><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mn>1,1</mn><mo fence="true" form="postfix" stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">(1,1)</annotation></semantics></math>, <math><semantics><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mn>0,1</mn><mo fence="true" form="postfix" stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">(0,1)</annotation></semantics></math>) in a few simple ways.
         </p>
 
-        <h3>Translations</h3>
+        <h3 id="translations">Translations</h3>
         <p>
           The simplest move is a <em>translation</em>: every point is moved by
           the same vector <math><semantics><mrow><mi>b</mi><mo>=</mo><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><msub><mi>b</mi><mn>1</mn></msub><mo separator="true">,</mo><msub><mi>b</mi><mn>2</mn></msub><mo fence="true" form="postfix" stretchy="false">)</mo></mrow></mrow><annotation encoding="application/x-tex">b = (b_1, b_2)</annotation></semantics></math>,
@@ -68,7 +109,7 @@
           section 2.
         </p>
 
-        <h3>Linear maps and matrices</h3>
+        <h3 id="linear-maps-and-matrices">Linear maps and matrices</h3>
         <p>
           The other moves keep the origin where it is, and send straight lines
           to straight lines and the midpoint of two points to the midpoint of
@@ -112,7 +153,7 @@
           frame the app draws for every transform.
         </p>
 
-        <h3>Affine maps, and why the order matters</h3>
+        <h3 id="affine-maps-and-why-the-order-matters">Affine maps, and why the order matters</h3>
         <p>
           A linear map followed by a translation is an <em>affine map</em>,
           <math display="block" class="tml-display" style="display:block math;"><semantics><mtable displaystyle="true" style="width:100%;"><mtr class="tml-tageqn"><mtd style="padding:0;width:50%;"></mtd><mtd><mrow><mi>f</mi><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mi>p</mi><mo fence="true" form="postfix" stretchy="false">)</mo></mrow><mo>=</mo><mi>A</mi><mi>p</mi><mo>+</mo><mi>b</mi><mi>.</mi></mrow></mtd><mtd style="padding:0;width:50%;"><mtext class="tml-tag">(1.1)</mtext></mtd></mtr></mtable><annotation encoding="application/x-tex">f(p) = A p + b . \tag{1.1}</annotation></semantics></math>
@@ -132,7 +173,7 @@
           the starting shape is drawn through it.
         </p>
 
-        <h3>The transform boxes of the 2D page</h3>
+        <h3 id="the-transform-boxes-of-the-2d-page">The transform boxes of the 2D page</h3>
         <p>
           Each transform box of the 2D page holds a position <math><semantics><mrow><mi>X</mi><mo separator="true">,</mo><mi>Y</mi></mrow><annotation encoding="application/x-tex">X, Y</annotation></semantics></math>, a
           rotation <math><semantics><mi>θ</mi><annotation encoding="application/x-tex">\theta</annotation></semantics></math>, a scale <math><semantics><mi>s</mi><annotation encoding="application/x-tex">s</annotation></semantics></math>, a stretch <math><semantics><mi>k</mi><annotation encoding="application/x-tex">k</annotation></semantics></math> (height divided by
@@ -306,7 +347,7 @@
           (box-counting) dimension:
           <math display="block" class="tml-display" style="display:block math;"><semantics><mrow><mi>D</mi><mo>=</mo><munder><mi>lim</mi><mrow><mi>ε</mi><mo>→</mo><mn>0</mn></mrow></munder><mo>⁡</mo><mspace width="0.1667em"></mspace><mfrac><mrow><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mi>N</mi><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mi>ε</mi><mo fence="true" form="postfix" stretchy="false">)</mo></mrow></mrow><mrow><mrow><mi>log</mi><mo>⁡</mo></mrow><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mn>1</mn><mi>/</mi><mi>ε</mi><mo fence="true" form="postfix" stretchy="false">)</mo></mrow></mrow></mfrac><mi>.</mi></mrow><annotation encoding="application/x-tex">D = \lim_{\varepsilon \to 0} \frac{\log N(\varepsilon)}{\log(1/\varepsilon)} .</annotation></semantics></math>
         </p>
-        <h3>Self-similar figures</h3>
+        <h3 id="self-similar-figures">Self-similar figures</h3>
         <p>
           For an attractor made of <math><semantics><mi>N</mi><annotation encoding="application/x-tex">N</annotation></semantics></math> copies of itself, each scaled by
           <math><semantics><mi>r</mi><annotation encoding="application/x-tex">r</annotation></semantics></math>, the counting is easy: covering it with pieces of size
@@ -345,7 +386,7 @@
           in the plane cannot have dimension above 2, so the number simply
           says that its copies overlap. Its true dimension is 2.
         </p>
-        <h3>Self-affine figures</h3>
+        <h3 id="self-affine-figures">Self-affine figures</h3>
         <p>
           A stretched or slanted copy shrinks by different amounts in different
           directions, by its singular values <math><semantics><mrow><msub><mi>σ</mi><mn>1</mn></msub><mo>≥</mo><msub><mi>σ</mi><mn>2</mn></msub></mrow><annotation encoding="application/x-tex">\sigma_1 \ge \sigma_2</annotation></semantics></math>. Covering
@@ -442,7 +483,7 @@
           numbers. The starting shape of the 3D page is the unit cube
           <math><semantics><msup><mrow><mo fence="true" form="prefix" stretchy="false">[</mo><mn>0,1</mn><mo fence="true" form="postfix" stretchy="false">]</mo></mrow><mn>3</mn></msup><annotation encoding="application/x-tex">[0,1]^3</annotation></semantics></math>.
         </p>
-        <h3>Turning in space</h3>
+        <h3 id="turning-in-space">Turning in space</h3>
         <p>
           In space, a turn happens about an axis. About the three coordinate
           axes,
@@ -464,7 +505,7 @@
           turn about a single axis; the three angles are just a convenient
           way to set it.
         </p>
-        <h3>Seeing it on a flat screen</h3>
+        <h3 id="seeing-it-on-a-flat-screen">Seeing it on a flat screen</h3>
         <p>
           The picture is drawn in perspective. The view is turned (Yaw and
           Pitch, by dragging), then a point at depth <math><semantics><mi>z</mi><annotation encoding="application/x-tex">z</annotation></semantics></math> towards the viewer,
@@ -485,7 +526,7 @@
           <figcaption>Generations of the Menger sponge: 1, 20, 400 and 8000
           cubes.</figcaption>
         </figure>
-        <h3>The presets in space</h3>
+        <h3 id="the-presets-in-space">The presets in space</h3>
         <div class="gallery"><figure class="card" id="3d-0"><a class="pics" href="3d.html#r=3&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333" title="Open Menger sponge in the app"><span class="pic"><img src="images/notes/3d_0.png" alt="Menger sponge" loading="lazy"></span></a><figcaption><b>Menger sponge</b> <a class="open" href="3d.html#r=3&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333">open&nbsp;&rarr;</a><br>Twenty of the 27 cubes a third the size: all but the middle one and the middles of the six faces. <math><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>20</mn><mi>/</mi><mrow><mspace width="0.1667em"></mspace><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>3</mn><mo>≈</mo><mn>2.727</mn></mrow><annotation encoding="application/x-tex">D = \log 20/\log 3 \approx 2.727</annotation></semantics></math>. Its volume after <math><semantics><mi>n</mi><annotation encoding="application/x-tex">n</annotation></semantics></math> generations is <math><semantics><mrow><msup><mrow><mo fence="true" form="prefix" stretchy="false">(</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mn>20</mn><mn>27</mn></mfrac></mstyle><mo fence="true" form="postfix" stretchy="false">)</mo></mrow><mi>n</mi></msup><mo>→</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">(\tfrac{20}{27})^n \to 0</annotation></semantics></math>, while its surface area grows without bound.</figcaption></figure><figure class="card" id="3d-1"><a class="pics" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0.25,0,0.433,0,0,0,0.5,0.5,0.5;0.25,0.4082,0.1443,0,0,0,0.5,0.5,0.5" title="Open Sierpinski tetrahedron in the app"><span class="pic"><img src="images/notes/3d_1.png" alt="Sierpinski tetrahedron" loading="lazy"></span></a><figcaption><b>Sierpinski tetrahedron</b> <a class="open" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0.25,0,0.433,0,0,0,0.5,0.5,0.5;0.25,0.4082,0.1443,0,0,0,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Four half-size copies at the corners of a tetrahedron: <math><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>4</mn><mi>/</mi><mrow><mspace width="0.1667em"></mspace><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>2</mn><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">D = \log 4/\log 2 = 2</annotation></semantics></math>, exactly. A solid-looking object of dimension 2; seen along the right direction, its shadow is a full square.</figcaption></figure><figure class="card" id="3d-2"><a class="pics" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0,0,0.5,0,0,0,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0.5,0.5,0.5;0.25,0.3536,0.25,0,0,0,0.5,0.5,0.5" title="Open Sierpinski pyramid in the app"><span class="pic"><img src="images/notes/3d_2.png" alt="Sierpinski pyramid" loading="lazy"></span></a><figcaption><b>Sierpinski pyramid</b> <a class="open" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0,0,0.5,0,0,0,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0.5,0.5,0.5;0.25,0.3536,0.25,0,0,0,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Five half-size copies: four on the corners of a square base, one on top. <math><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>5</mn><mi>/</mi><mrow><mspace width="0.1667em"></mspace><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>2</mn><mo>≈</mo><mn>2.322</mn></mrow><annotation encoding="application/x-tex">D = \log 5/\log 2 \approx 2.322</annotation></semantics></math>.</figcaption></figure><figure class="card" id="3d-3"><a class="pics" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.5,0.25,0.25,0,0,0,0.5,0.5,0.5;0,0.25,0.25,0,0,0,0.5,0.5,0.5;0.25,0.5,0.25,0,0,0,0.5,0.5,0.5;0.25,0,0.25,0,0,0,0.5,0.5,0.5;0.25,0.25,0.5,0,0,0,0.5,0.5,0.5;0.25,0.25,0,0,0,0,0.5,0.5,0.5" title="Open Octahedron flake in the app"><span class="pic"><img src="images/notes/3d_3.png" alt="Octahedron flake" loading="lazy"></span></a><figcaption><b>Octahedron flake</b> <a class="open" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.5,0.25,0.25,0,0,0,0.5,0.5,0.5;0,0.25,0.25,0,0,0,0.5,0.5,0.5;0.25,0.5,0.25,0,0,0,0.5,0.5,0.5;0.25,0,0.25,0,0,0,0.5,0.5,0.5;0.25,0.25,0.5,0,0,0,0.5,0.5,0.5;0.25,0.25,0,0,0,0,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Six half-size copies pushed out to the six faces of the cube, which make an octahedron. <math><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>6</mn><mi>/</mi><mrow><mspace width="0.1667em"></mspace><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>2</mn><mo>≈</mo><mn>2.585</mn></mrow><annotation encoding="application/x-tex">D = \log 6/\log 2 \approx 2.585</annotation></semantics></math>.</figcaption></figure><figure class="card" id="3d-4"><a class="pics" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333" title="Open Cross of crosses in the app"><span class="pic"><img src="images/notes/3d_4.png" alt="Cross of crosses" loading="lazy"></span></a><figcaption><b>Cross of crosses</b> <a class="open" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333">open&nbsp;&rarr;</a><br>The Vicsek cross in space: the middle cube and the middles of the six faces, a third the size. <math><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>7</mn><mi>/</mi><mrow><mspace width="0.1667em"></mspace><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>3</mn><mo>≈</mo><mn>1.771</mn></mrow><annotation encoding="application/x-tex">D = \log 7/\log 3 \approx 1.771</annotation></semantics></math>.</figcaption></figure><figure class="card" id="3d-5"><a class="pics" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333" title="Open Cantor dust in the app"><span class="pic"><img src="images/notes/3d_5.png" alt="Cantor dust" loading="lazy"></span></a><figcaption><b>Cantor dust</b> <a class="open" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333">open&nbsp;&rarr;</a><br>The eight corner cubes a third the size. It is the Cantor set times itself three times, and <math><semantics><mrow><mi>D</mi><mo>=</mo><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>8</mn><mi>/</mi><mrow><mspace width="0.1667em"></mspace><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>3</mn><mo>=</mo><mn>3</mn><mo>⋅</mo><mstyle displaystyle="false" scriptlevel="0"><mfrac><mrow><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>2</mn></mrow><mrow><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.1667em"></mspace></mrow><mn>3</mn></mrow></mfrac></mstyle><mo>≈</mo><mn>1.893</mn></mrow><annotation encoding="application/x-tex">D = \log 8/\log 3 = 3 \cdot \tfrac{\log 2}{\log 3} \approx 1.893</annotation></semantics></math>: three times the dimension of the Cantor set.</figcaption></figure><figure class="card" id="3d-6"><a class="pics" href="3d.html#r=7&amp;l=1&amp;s=1&amp;d=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.49,0,0.49,0,0,0,0.02,0.18,0.02;0.075,0.11,0.075,-6.7,0,0,0.85,0.8559,0.8559;0.4,-0.02,0.35,0,0,45,0.2828,0.2828,0.3;0.6,-0.02,0.35,0,0,-45,0.2828,0.2828,0.3,1" title="Open Fern in the app"><span class="pic"><img src="images/notes/3d_6.png" alt="Fern" loading="lazy"></span></a><figcaption><b>Fern</b> <a class="open" href="3d.html#r=7&amp;l=1&amp;s=1&amp;d=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.49,0,0.49,0,0,0,0.02,0.18,0.02;0.075,0.11,0.075,-6.7,0,0,0.85,0.8559,0.8559;0.4,-0.02,0.35,0,0,45,0.2828,0.2828,0.3;0.6,-0.02,0.35,0,0,-45,0.2828,0.2828,0.3,1">open&nbsp;&rarr;</a><br>Barnsley's fern given depth: the fronds curl a little out of the plane. Its main copy shrinks so little (0.85) that cubes stay large for many generations, so it is drawn with random dots. Affinity dimension about 1.759.</figcaption></figure><figure class="card" id="3d-7"><a class="pics" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.475,0,0.475,0,0,0,0.05,0.4,0.05;0.0902,0.4,0.6098,0,60,0,0.6,0.6,0.6;0.328,0.2795,0.29,0,0,35,0.42,0.42,0.42;0.4041,0.2795,0.754,0,120,35,0.42,0.42,0.42;0.7679,0.2795,0.456,0,-120,35,0.42,0.42,0.42" title="Open Tree in the app"><span class="pic"><img src="images/notes/3d_7.png" alt="Tree" loading="lazy"></span></a><figcaption><b>Tree</b> <a class="open" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.475,0,0.475,0,0,0,0.05,0.4,0.05;0.0902,0.4,0.6098,0,60,0,0.6,0.6,0.6;0.328,0.2795,0.29,0,0,35,0.42,0.42,0.42;0.4041,0.2795,0.754,0,120,35,0.42,0.42,0.42;0.7679,0.2795,0.456,0,-120,35,0.42,0.42,0.42">open&nbsp;&rarr;</a><br>A thin trunk, its top turned and scaled by 0.6, and three branches scaled by 0.42 leaning out around it. Affinity dimension about 1.878.</figcaption></figure></div>
       </section>
 
@@ -502,7 +543,7 @@
           we can no longer simply look at the result.
         </p>
 
-        <h3>The tesseract</h3>
+        <h3 id="the-tesseract">The tesseract</h3>
         <p>
           The starting shape of the 4D page is the unit <em>tesseract</em>
           <math><semantics><msup><mrow><mo fence="true" form="prefix" stretchy="false">[</mo><mn>0,1</mn><mo fence="true" form="postfix" stretchy="false">]</mo></mrow><mn>4</mn></msup><annotation encoding="application/x-tex">[0,1]^4</annotation></semantics></math>, the four-dimensional cube. Its corners are the 16 points
@@ -517,7 +558,7 @@
           bounded by 8 cubes, the <em>cells</em> <math><semantics><mrow><msub><mi>x</mi><mi>k</mi></msub><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">x_k = 0</annotation></semantics></math> and <math><semantics><mrow><msub><mi>x</mi><mi>k</mi></msub><mo>=</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">x_k = 1</annotation></semantics></math>.
         </p>
 
-        <h3>Turning in four dimensions</h3>
+        <h3 id="turning-in-four-dimensions">Turning in four dimensions</h3>
         <p>
           In the plane a turn moves every point except the centre; in space it
           leaves an axis in place. In four dimensions a turn leaves a whole
@@ -551,7 +592,7 @@
           same angle (an <em>isoclinic</em> rotation).
         </p>
 
-        <h3>Seeing four dimensions</h3>
+        <h3 id="seeing-four-dimensions">Seeing four dimensions</h3>
         <p>
           In Edwin Abbott's <em>Flatland</em> (1884), a sphere visits a world
           of two dimensions. The flat people can see only where it crosses
@@ -687,5 +728,7 @@
         </ul>
       </section>
     </main>
+    <script src="javascript/panel.js"></script>
+    <script src="javascript/notes.js"></script>
   </body>
 </html>

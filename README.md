@@ -14,8 +14,8 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
 
 The three pages – flat figures (`index.html`), figures in space (`3d.html`) and
 in four dimensions (`4d.html`) – are reached by the tabs 2D, 3D and 4D under
-the title. A fourth tab, *Notes* (`notes.html`), explains the mathematics
-behind them, from moving a square to figures in four dimensions, with
+the title. A fourth tab, *Notes* (`notes.html`), with the same side panel (its
+Contents follow the reading), explains the mathematics behind them, from moving a square to figures in four dimensions, with
 pictures made with the app that open their figures in it. Every section of the side panel folds away when its title is
 clicked (or Enter is pressed on it), and each page remembers which ones are
 folded.
@@ -204,7 +204,8 @@ npm run test:browser
 | `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset as copies and as dots both ways, generations and their options, the transform boxes, dragging frames, undo, Random, links, the view, favourites, the tabs |
 | `tests/e2e/hyper-phone.spec.js` | The 4D page on a phone: layout, Play, turning with a finger, dragging a frame, pinch |
 | `tests/unit/notes.test.js` | The notes: up to date with their source, every formula reads, pictures and links exist |
-| `tests/e2e/notes.spec.js` | The notes in the browser: the tab, formulas drawn, pictures loaded, links to sections and to figures in the app |
+| `tests/e2e/notes.spec.js` | The notes in the browser: the tab, the side panel and its contents, formulas drawn, pictures loaded, links to sections and to figures in the app |
+| `tests/e2e/notes-phone.spec.js` | The notes on a phone: the panel above the text, nothing wider than the screen |
 
 ## Files
 
@@ -215,6 +216,7 @@ npm run test:browser
 | `tools/notes-source.html` | The notes, with their formulas in LaTeX |
 | `tools/build-notes.js` | Turns the notes' LaTeX into MathML and writes `notes.html` |
 | `css/notes.css` | The look of the notes |
+| `javascript/notes.js` | The notes' Contents in the side panel marking the section being read |
 | `images/notes/` | The notes' pictures, made with the app |
 | `css/style.css` | The look of the page |
 | `javascript/fractal.js` | The fractal engine: generations, zoom detail, drawing, SVG export, colours |

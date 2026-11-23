@@ -1,33 +1,26 @@
 /* Similar Fractal: the notes page, set like a printed text. */
 
+/* The side panel is the same as on the other pages (style.css); the text
+   takes the rest of the window, and scrolls with it. */
+
 body.notes_page {
-  display: block;
   height: auto;
-  overflow: auto;
   background: #fbf9f3;
-  color: #222;
 }
 
-.notes_header,
+#notes_main {
+  margin-left: 320px;
+  padding: 6px 40px 60px;
+}
+
 .notes {
   max-width: 46em;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.notes_header {
-  padding-top: 20px;
-}
-
-.notes_page .page_tabs a[aria-current="page"] {
-  border-bottom-color: #fbf9f3;
-  background: #fbf9f3;
-}
-
-.notes {
-  padding-bottom: 60px;
   font-size: 17px;
   line-height: 1.55;
+}
+
+#notes_main > :first-child {
+  margin-top: 22px;
 }
 
 .notes_title {
@@ -79,29 +72,44 @@ body.notes_page {
   color: #222;
 }
 
-/* ---- Contents ---- */
+/* ---- Contents, in the side panel ---- */
 
-.contents {
-  margin: 20px 0 10px;
-  padding: 10px 18px;
-  border-top: 1px solid #8c8676;
-  border-bottom: 1px solid #8c8676;
-  columns: 2;
-  column-gap: 30px;
-}
-
-.contents ol {
+#panel .contents ol {
   margin: 0;
-  padding-left: 1.4em;
+  padding-left: 1.5em;
 }
 
-.contents a {
+#panel .contents > ol > li {
+  margin: 3px 0;
+}
+
+#panel .contents ol ol {
+  margin: 1px 0 4px;
+  padding-left: 1.1em;
+  list-style: none;
+  font-size: 13.5px;
+}
+
+#panel .contents a {
   color: #222;
   text-decoration: none;
 }
 
-.contents a:hover {
+#panel .contents ol ol a {
+  color: #5c574b;
+}
+
+#panel .contents a:hover {
   text-decoration: underline;
+}
+
+/* The section being read. */
+#panel .contents a.current {
+  color: #8c3b2a;
+}
+
+#panel .contents ol ol a.current::before {
+  content: "\2192\00a0";
 }
 
 /* ---- Formulas (MathML, drawn by the browser) ---- */
@@ -289,19 +297,23 @@ section:target,
   from { background-color: #efe3c8; }
 }
 
-/* ---- Small screens ---- */
+/* ---- Small screens: the panel above the text, as on the other pages ---- */
 
-@media (max-width: 640px) {
+@media (max-width: 760px) {
+  body.notes_page { display: block; }
+  #notes_main { margin-left: 0; padding: 0 14px 40px; border-top: 1px solid #8c8676; }
   .notes { font-size: 16px; }
-  .notes_header, .notes { padding: 0 14px; }
-  .contents { columns: 1; }
   .notes p { text-align: left; }
   figure.side { float: none; width: auto; max-width: 260px; margin: 12px auto; }
   figure.row > span { min-width: 70px; }
+  .gallery.wide { grid-template-columns: 1fr; }
+  /* A shorter list before the text: the sections only. */
+  #panel .contents ol ol { display: none; }
 }
 
 @media print {
-  .page_tabs { display: none; }
+  #panel { display: none; }
+  #notes_main { margin-left: 0; }
   .gallery .pics { break-inside: avoid; }
   section { break-inside: auto; }
 }

@@ -30,6 +30,23 @@ test("the notes: a tab on every page; formulas drawn, pictures loaded", async ({
   expect(errors).toEqual([]);
 });
 
+test("the notes: the side panel as on the other pages; its contents follow the reading", async ({ page }) => {
+  await page.goto(NOTES);
+  // On a wide screen the panel is on the left and the text beside it.
+  const panel = await page.locator("#panel").boundingBox(), main = await page.locator("#notes_main").boundingBox();
+  expect(panel.x).toBe(0);
+  expect(main.x).toBeGreaterThanOrEqual(panel.width - 1);
+  await expect(page.locator("#panel .contents a.current").first()).toHaveText("Moving the plane");
+  await page.locator("#panel .contents a", { hasText: "Turning in four dimensions" }).click();
+  await expect(page).toHaveURL(/#turning-in-four-dimensions$/);
+  await expect(page.locator("#panel .contents a.current")).toHaveText(["Four dimensions", "Turning in four dimensions"]);
+  // The panel stays put while the text scrolls.
+  expect((await page.locator("#panel").boundingBox()).y).toBe(0);
+  // Its sections fold, as on the other pages.
+  await page.locator("#panel legend", { hasText: "Contents" }).click();
+  await expect(page.locator("#panel .contents")).toBeHidden();
+});
+
 test("the notes: the contents lead to their sections; a picture opens its figure", async ({ page }) => {
   await page.goto(NOTES);
   await page.locator(".contents a", { hasText: "Four dimensions" }).first().click();
