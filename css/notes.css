@@ -1,0 +1,312 @@
+/* Similar Fractal: the notes page, set like a printed text. */
+
+body.notes_page {
+  display: block;
+  height: auto;
+  overflow: auto;
+  background: #fbf9f3;
+  color: #222;
+}
+
+.notes_header,
+.notes {
+  max-width: 46em;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.notes_header {
+  padding-top: 20px;
+}
+
+.notes_page .page_tabs a[aria-current="page"] {
+  border-bottom-color: #fbf9f3;
+  background: #fbf9f3;
+}
+
+.notes {
+  padding-bottom: 60px;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.notes_title {
+  margin: 26px 0 6px;
+  font-size: 28px;
+  font-weight: normal;
+  letter-spacing: 0.01em;
+}
+
+.notes .lead {
+  margin-top: 0;
+  font-style: italic;
+  color: #4a463c;
+}
+
+.notes h2 {
+  margin: 44px 0 10px;
+  padding-bottom: 3px;
+  font-size: 22px;
+  font-weight: normal;
+  border-bottom: 1px solid #222;
+}
+
+.notes h2 .num {
+  display: inline-block;
+  min-width: 1.4em;
+  color: #8c3b2a;
+}
+
+.notes h3 {
+  margin: 26px 0 6px;
+  font-size: 17px;
+  font-weight: normal;
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+}
+
+.notes p {
+  margin: 8px 0;
+  text-align: justify;
+  hyphens: auto;
+}
+
+.notes a {
+  color: #8c3b2a;
+}
+
+.notes a:hover {
+  color: #222;
+}
+
+/* ---- Contents ---- */
+
+.contents {
+  margin: 20px 0 10px;
+  padding: 10px 18px;
+  border-top: 1px solid #8c8676;
+  border-bottom: 1px solid #8c8676;
+  columns: 2;
+  column-gap: 30px;
+}
+
+.contents ol {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.contents a {
+  color: #222;
+  text-decoration: none;
+}
+
+.contents a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Formulas (MathML, drawn by the browser) ---- */
+
+math {
+  font-family: "Latin Modern Math", "STIX Two Math", "Cambria Math", "Libertinus Math", math;
+  font-size: 1.05em;
+}
+
+math[display="block"] {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+/* Numbered formulas: the number at the right (temml writes it in an mtd). */
+.tml-eqn::before { content: none; }
+
+.theorem {
+  margin: 16px 0;
+  padding: 6px 16px;
+  border-left: 3px solid #8c3b2a;
+  background: #f3efe4;
+}
+
+.maths_list li {
+  margin: 6px 0;
+}
+
+.reading li {
+  margin: 4px 0;
+}
+
+/* ---- Pictures ---- */
+
+.notes figure {
+  margin: 16px 0;
+}
+
+.notes figcaption {
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: #4a463c;
+}
+
+.notes img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* A row of pictures with small labels: generations, slices, turns. */
+figure.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+figure.row > span {
+  flex: 1 1 0;
+  min-width: 90px;
+  text-align: center;
+}
+
+figure.row figcaption {
+  flex-basis: 100%;
+  margin-top: 4px;
+}
+
+.pic_label {
+  display: block;
+  font-size: 13.5px;
+  font-style: italic;
+  color: #4a463c;
+}
+
+/* A picture beside the text. */
+figure.side {
+  float: right;
+  width: 200px;
+  margin: 4px 0 10px 20px;
+}
+
+/* The small diagrams of section 1 (SVG). */
+.diagrams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  margin: 12px 0 0;
+}
+
+figure.diagram {
+  width: 160px;
+  margin: 0;
+  text-align: center;
+}
+
+figure.diagram svg {
+  display: block;
+  background: #fffdf8;
+  border: 1px solid #d6d0c0;
+}
+
+figure.diagram .axis { stroke: #cfc9b8; stroke-width: 1; }
+figure.diagram .before { fill: none; stroke: #8c8676; stroke-width: 1.2; stroke-dasharray: 4 3; }
+figure.diagram .after { fill: rgba(47, 107, 58, 0.1); stroke: #2f6b3a; stroke-width: 1.6; }
+figure.diagram .base { stroke: #2f6b3a; stroke-width: 3.2; }
+figure.diagram .corner { fill: #2f6b3a; }
+
+.caption_note {
+  font-size: 14.5px;
+  color: #4a463c;
+}
+
+/* ---- The galleries of presets ---- */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px 20px;
+  margin: 16px 0;
+}
+
+.gallery.wide {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.gallery .card {
+  margin: 0;
+  scroll-margin-top: 20px;
+}
+
+.gallery .pics {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 150px;
+  padding: 6px;
+  background: #fffdf8;
+  border: 1px solid #d6d0c0;
+}
+
+.gallery .pics:hover {
+  border-color: #8c3b2a;
+}
+
+.gallery .pic {
+  flex: 1 1 0;
+  text-align: center;
+}
+
+.gallery .pic img {
+  margin: 0 auto;
+  max-height: 190px;
+  width: auto;
+}
+
+.gallery figcaption {
+  margin-top: 6px;
+}
+
+.gallery figcaption b {
+  font-weight: normal;
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  color: #222;
+  font-size: 16px;
+}
+
+.gallery .open {
+  float: right;
+  font-size: 13.5px;
+}
+
+section:target,
+.card:target .pics {
+  animation: notes_flash 1.6s ease-out;
+}
+
+@keyframes notes_flash {
+  from { background-color: #efe3c8; }
+}
+
+/* ---- Small screens ---- */
+
+@media (max-width: 640px) {
+  .notes { font-size: 16px; }
+  .notes_header, .notes { padding: 0 14px; }
+  .contents { columns: 1; }
+  .notes p { text-align: left; }
+  figure.side { float: none; width: auto; max-width: 260px; margin: 12px auto; }
+  figure.row > span { min-width: 70px; }
+}
+
+@media print {
+  .page_tabs { display: none; }
+  .gallery .pics { break-inside: avoid; }
+  section { break-inside: auto; }
+}
+
+.gallery .pics,
+.gallery .pics .pic_label {
+  text-decoration: none;
+}

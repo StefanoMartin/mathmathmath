@@ -14,7 +14,9 @@ Sierpinski triangle; four stretched and slanted ones give the Barnsley fern.
 
 The three pages – flat figures (`index.html`), figures in space (`3d.html`) and
 in four dimensions (`4d.html`) – are reached by the tabs 2D, 3D and 4D under
-the title. Every section of the side panel folds away when its title is
+the title. A fourth tab, *Notes* (`notes.html`), explains the mathematics
+behind them, from moving a square to figures in four dimensions, with
+pictures made with the app that open their figures in it. Every section of the side panel folds away when its title is
 clicked (or Enter is pressed on it), and each page remembers which ones are
 folded.
 
@@ -146,6 +148,22 @@ Favourites and colour choices are kept in the browser, separately for each
 copy of the page: the ones saved in the local copy do not appear online.
 Use *Save to file* and *Load from file* to move favourites.
 
+## The notes page
+
+`notes.html` is made from `tools/notes-source.html`, where the formulas are
+written in LaTeX (between `\(` and `\)` in the text, `\[` and `\]` on their own
+lines). After editing the source, rebuild the page:
+
+```
+npm install      # once: Temml, which turns LaTeX into MathML
+npm run notes
+```
+
+Each formula becomes MathML, which browsers draw themselves, with its LaTeX
+kept inside; the page needs no maths library and nothing at run time. The
+pictures are in `images/notes`. A unit test checks that `notes.html` is up to
+date with its source.
+
 ## Tests
 
 The app needs nothing installed; the tests need [Node.js](https://nodejs.org) 22
@@ -185,12 +203,19 @@ npm run test:browser
 | `tests/unit/hyper.test.js` | 4D: turns in a plane, any turn split into six and back, transforms, fixed points, the presets' dimensions and bounds, generations of tesseracts, their outside and their cuts, dots turned and sliced, frames and dragging them, links |
 | `tests/e2e/hyper.spec.js` | The 4D page on a desktop: playing, pausing, the slider, every preset as copies and as dots both ways, generations and their options, the transform boxes, dragging frames, undo, Random, links, the view, favourites, the tabs |
 | `tests/e2e/hyper-phone.spec.js` | The 4D page on a phone: layout, Play, turning with a finger, dragging a frame, pinch |
+| `tests/unit/notes.test.js` | The notes: up to date with their source, every formula reads, pictures and links exist |
+| `tests/e2e/notes.spec.js` | The notes in the browser: the tab, formulas drawn, pictures loaded, links to sections and to figures in the app |
 
 ## Files
 
 | File | What it does |
 |---|---|
 | `index.html` | The page: control panel and figure |
+| `notes.html` | The notes on the mathematics (made from `tools/notes-source.html`) |
+| `tools/notes-source.html` | The notes, with their formulas in LaTeX |
+| `tools/build-notes.js` | Turns the notes' LaTeX into MathML and writes `notes.html` |
+| `css/notes.css` | The look of the notes |
+| `images/notes/` | The notes' pictures, made with the app |
 | `css/style.css` | The look of the page |
 | `javascript/fractal.js` | The fractal engine: generations, zoom detail, drawing, SVG export, colours |
 | `javascript/dots.js` | Drawing the figure as random dots (the chaos game) |

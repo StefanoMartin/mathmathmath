@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<!--
+  The source of notes.html. The formulas are written in LaTeX, between \( and \)
+  in the text and between \[ and \] on lines of their own; tools/build-notes.js
+  turns each into MathML (which browsers draw themselves) and writes notes.html.
+  Edit this file, then run: npm run notes
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Similar Fractal: notes</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/notes.css">
+  </head>
+  <body class="notes_page">
+    <header class="notes_header">
+      <h1>Similar Fractal</h1>
+      <nav class="page_tabs" aria-label="Pages">
+        <a href="index.html" title="Flat figures, from a shape">2D</a>
+        <a href="3d.html" title="Figures in space, from a cube">3D</a>
+        <a href="4d.html" title="Figures in four dimensions, from a tesseract">4D</a>
+        <a href="notes.html" aria-current="page" title="How it works: the mathematics behind the pages">Notes</a>
+      </nav>
+    </header>
+
+    <main class="notes">
+      <h2 class="notes_title">Notes on self-similar fractals</h2>
+      <p class="lead">
+        From moving a square across the plane to figures in four dimensions:
+        the mathematics behind the three pages of this app, step by step. Each
+        step uses only the one before it. The pictures were made with the app,
+        and a click on most of them opens that figure there.
+      </p>
+
+      <nav class="contents" aria-label="Contents">
+        <ol>
+          <li><a href="#moving">Moving the plane</a></li>
+          <li><a href="#shrinking">Shrinking: contractions and fixed points</a></li>
+          <li><a href="#ifs">Many copies: iterated function systems</a></li>
+          <li><a href="#fractal-dimension">Dimension</a></li>
+          <li><a href="#chaos">The chaos game</a></li>
+          <li><a href="#presets2d">The flat presets</a></li>
+          <li><a href="#space">Three dimensions</a></li>
+          <li><a href="#hyper">Four dimensions</a></li>
+          <li><a href="#presets4d">The four-dimensional presets</a></li>
+          <li><a href="#reading">Further reading</a></li>
+        </ol>
+      </nav>
+
+      <!-- ================================================================ -->
+      <section id="moving">
+        <h2><span class="num">1</span> Moving the plane</h2>
+
+        <p>
+          A point of the plane is a pair of numbers \(p = (x, y)\), which we
+          also write as a column \(p = \begin{pmatrix} x \\ y \end{pmatrix}\)
+          and treat as a vector: points can be added and multiplied by numbers.
+          Every figure in the app is made by moving a starting shape (on the
+          2D page, by default, the unit square with corners \((0,0)\),
+          \((1,0)\), \((1,1)\), \((0,1)\)) in a few simple ways.
+        </p>
+
+        <h3>Translations</h3>
+        <p>
+          The simplest move is a <em>translation</em>: every point is moved by
+          the same vector \(b = (b_1, b_2)\),
+          \[ T_b(p) = p + b. \]
+          Translations keep lengths, angles and orientation. Two of them in a
+          row make another, \(T_b \circ T_c = T_{b+c}\), and the order does not
+          matter. A translation by \(b \neq 0\) moves every point, so it leaves
+          none where it is; we will meet maps that do leave one point fixed in
+          section 2.
+        </p>
+
+        <h3>Linear maps and matrices</h3>
+        <p>
+          The other moves keep the origin where it is, and send straight lines
+          to straight lines and the midpoint of two points to the midpoint of
+          their images. Such a map is <em>linear</em>: it is
+          \(p \mapsto A p\) for a \(2 \times 2\) matrix
+          \[ A = \begin{pmatrix} a & b \\ c & d \end{pmatrix}, \qquad
+             A \begin{pmatrix} x \\ y \end{pmatrix} = \begin{pmatrix} a x + b y \\ c x + d y \end{pmatrix}. \]
+          The matrix is easy to read: its first column \((a, c)\) is where the
+          point \((1, 0)\) goes and its second column \((b, d)\) is where
+          \((0, 1)\) goes. So the unit square is sent to the parallelogram with
+          those two columns as sides. Its area is the absolute value of the
+          <em>determinant</em>, \(\det A = ad - bc\); if the determinant is
+          negative, the square has been flipped over.
+        </p>
+        <p>The moves of the app are these matrices:</p>
+        <ul class="maths_list">
+          <li><b>Rotation</b> by an angle \(\theta\) (anticlockwise):
+            \( R(\theta) = \begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix} \).
+            Its columns are \((\cos\theta, \sin\theta)\), the point \((1,0)\)
+            turned by \(\theta\), and \((-\sin\theta, \cos\theta)\), the point
+            \((0,1)\) turned by \(\theta\). Rotations keep lengths
+            (\(R^\top R = I\)), have determinant \(\cos^2\theta + \sin^2\theta = 1\),
+            and add up: \(R(\alpha) R(\beta) = R(\alpha + \beta)\).</li>
+          <li><b>Scaling</b> by a factor \(s\): \(s I = \begin{pmatrix} s & 0 \\ 0 & s \end{pmatrix}\),
+            which multiplies every length by \(s\) and every area by \(s^2\).</li>
+          <li><b>Stretch</b>: \(\operatorname{diag}(1, k) = \begin{pmatrix} 1 & 0 \\ 0 & k \end{pmatrix}\)
+            scales heights by \(k\) and leaves widths alone.</li>
+          <li><b>Slant</b> (a <em>shear</em>) by an angle \(\varphi\):
+            \( \begin{pmatrix} 1 & \tan\varphi \\ 0 & 1 \end{pmatrix} \), which
+            leans the upright sides of the square over by \(\varphi\) and keeps
+            its base and its area.</li>
+          <li><b>Mirror</b>: \(\operatorname{diag}(1, -1)\) flips the plane over
+            the horizontal axis; its determinant is \(-1\).</li>
+        </ul>
+
+        <div class="diagrams"><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Translation"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="80.0,93.3 146.7,93.3 146.7,26.7 80.0,26.7" class="after"/><line x1="80.0" y1="93.3" x2="146.7" y2="93.3" class="base"/><circle cx="80.0" cy="93.3" r="3" class="corner"/></svg><figcaption><b>Translation</b><br>\(p \mapsto p + (0.5,\,0.3)\)</figcaption></figure><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Rotation"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="46.7,113.3 104.4,80.0 71.1,22.3 13.3,55.6" class="after"/><line x1="46.7" y1="113.3" x2="104.4" y2="80.0" class="base"/><circle cx="46.7" cy="113.3" r="3" class="corner"/></svg><figcaption><b>Rotation</b><br>\(R(30^\circ)\)</figcaption></figure><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Scaling"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="46.7,113.3 80.0,113.3 80.0,80.0 46.7,80.0" class="after"/><line x1="46.7" y1="113.3" x2="80.0" y2="113.3" class="base"/><circle cx="46.7" cy="113.3" r="3" class="corner"/></svg><figcaption><b>Scaling</b><br>\(\tfrac12 I\)</figcaption></figure><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Stretch"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="46.7,113.3 113.3,113.3 113.3,80.0 46.7,80.0" class="after"/><line x1="46.7" y1="113.3" x2="113.3" y2="113.3" class="base"/><circle cx="46.7" cy="113.3" r="3" class="corner"/></svg><figcaption><b>Stretch</b><br>\(\operatorname{diag}(1,\tfrac12)\)</figcaption></figure><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Slant (shear)"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="46.7,113.3 113.3,113.3 151.8,46.7 85.2,46.7" class="after"/><line x1="46.7" y1="113.3" x2="113.3" y2="113.3" class="base"/><circle cx="46.7" cy="113.3" r="3" class="corner"/></svg><figcaption><b>Slant (shear)</b><br>\(\left(\begin{smallmatrix}1&\tan 30^\circ\\0&1\end{smallmatrix}\right)\)</figcaption></figure><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="Mirror"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="46.7,46.7 113.3,46.7 113.3,113.3 46.7,113.3" class="after"/><line x1="46.7" y1="46.7" x2="113.3" y2="46.7" class="base"/><circle cx="46.7" cy="46.7" r="3" class="corner"/></svg><figcaption><b>Mirror</b><br>\(\operatorname{diag}(1,-1)\), moved up by 1</figcaption></figure></div>
+        <p class="caption_note">
+          In each picture the dashed square is the unit square and the green
+          figure its image; the dot marks where the corner \((0,0)\) goes and
+          the thick side is the image of the base. This is exactly the green
+          frame the app draws for every transform.
+        </p>
+
+        <h3>Affine maps, and why the order matters</h3>
+        <p>
+          A linear map followed by a translation is an <em>affine map</em>,
+          \[ f(p) = A p + b . \tag{1.1} \]
+          It is given by six numbers: the four of \(A\) and the two of \(b\).
+          The image of the unit square is the parallelogram with corners
+          \(b\), \(b + A e_1\), \(b + A e_1 + A e_2\) and \(b + A e_2\), where
+          \(e_1 = (1,0)\) and \(e_2 = (0,1)\). Two affine maps in a row give an
+          affine map again:
+          \[ (f \circ g)(p) = A_f \,(A_g\, p + b_g) + b_f = (A_f A_g)\, p + (A_f\, b_g + b_f). \tag{1.2} \]
+          Matrix products do not commute, so the order matters, even for a
+          turn and a move:
+        </p>
+        <div class="diagrams"><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="First turn, then move"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="100.0,113.3 157.7,80.0 124.4,22.3 66.7,55.6" class="after"/><line x1="100.0" y1="113.3" x2="157.7" y2="80.0" class="base"/><circle cx="100.0" cy="113.3" r="3" class="corner"/></svg><figcaption><b>First turn, then move</b><br>\(T_b \circ R:\ p \mapsto Rp + b\)</figcaption></figure><figure class="diagram"><svg viewBox="0 0 160 160" width="160" height="160" role="img" aria-label="First move, then turn"><line x1="0" y1="113.3" x2="160" y2="113.3" class="axis"/><line x1="46.7" y1="0" x2="46.7" y2="160" class="axis"/><polygon points="46.7,113.3 113.3,113.3 113.3,46.7 46.7,46.7" class="before"/><polygon points="92.9,86.7 150.6,53.3 117.3,-4.4 59.5,28.9" class="after"/><line x1="92.9" y1="86.7" x2="150.6" y2="53.3" class="base"/><circle cx="92.9" cy="86.7" r="3" class="corner"/></svg><figcaption><b>First move, then turn</b><br>\(R \circ T_b:\ p \mapsto Rp + Rb\)</figcaption></figure></div>
+        <p>
+          This rule is how the app computes: a copy of a copy is the product of
+          the two maps by (1.2), six multiplications and a few additions, and
+          the starting shape is drawn through it.
+        </p>
+
+        <h3>The transform boxes of the 2D page</h3>
+        <p>
+          Each transform box of the 2D page holds a position \(X, Y\), a
+          rotation \(\theta\), a scale \(s\), a stretch \(k\) (height divided by
+          width), a slant \(\varphi\) and whether it is mirrored
+          (\(m = -1\), else \(m = 1\)). They make the affine map with
+          \[ A = R(\theta) \begin{pmatrix} 1 & 0 \\ 0 & m \end{pmatrix}
+                 \begin{pmatrix} 1 & \tan\varphi \\ 0 & 1 \end{pmatrix}
+                 \begin{pmatrix} s & 0 \\ 0 & k s \end{pmatrix},
+             \qquad b = \begin{pmatrix} X \\ Y \end{pmatrix}. \tag{1.3} \]
+          Read from the right: the square is scaled (its height \(k\) times
+          its width), slanted, mirrored over its base, turned, and moved so
+          that its corner \((0,0)\) lands on \((X, Y)\). Its area is multiplied
+          by \(|\det A| = k s^2\). When \(k = 1\) and \(\varphi = 0\), the map
+          multiplies every distance by the same factor,
+          \(|f(p) - f(q)| = s\,|p - q|\), and the copy has exactly the shape of
+          the original: it is a <em>similarity</em>. That is the "similar" in
+          the app's name; stretch and slant give the more general
+          <em>self-affine</em> figures.
+        </p>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="shrinking">
+        <h2><span class="num">2</span> Shrinking: contractions and fixed points</h2>
+
+        <p>
+          A map \(f\) is a <em>contraction</em> if it brings any two points
+          closer together by at least a fixed factor \(r < 1\):
+          \[ |f(p) - f(q)| \le r\,|p - q| \quad \text{for all } p, q. \]
+          For an affine map, \(f(p) - f(q) = A(p - q)\), so the best such \(r\)
+          is the most that \(A\) stretches any vector, its <em>operator norm</em>
+          \(\lVert A \rVert\). It is the largest <em>singular value</em>
+          \(\sigma_1\) of \(A\): the matrix sends the unit circle to an
+          ellipse, and \(\sigma_1 \ge \sigma_2\) are the lengths of its two
+          half-axes. For a similarity of scale \(s\), both are \(s\).
+          For the matrix \(A = \begin{pmatrix} a & b \\ c & d \end{pmatrix}\),
+          \[ \sigma_{1,2}^2 = \frac{P \pm \sqrt{P^2 - 4\,(\det A)^2}}{2},
+             \qquad P = a^2 + b^2 + c^2 + d^2 , \]
+          the formula the app uses; and \(\sigma_1 \sigma_2 = |\det A|\).
+        </p>
+
+        <div class="theorem">
+          <p><b>Banach's fixed point theorem (1922).</b> A contraction \(f\) of
+          the plane (or of any complete metric space) has exactly one
+          <em>fixed point</em> \(p^*\), with \(f(p^*) = p^*\). From any
+          starting point, the sequence \(p, f(p), f(f(p)), \dots\) tends to it,
+          and
+          \[ |f^n(p) - p^*| \le r^n\, |p - p^*| . \]</p>
+        </div>
+        <p>
+          The proof is short. Uniqueness: if \(p^*\) and \(q^*\) were both
+          fixed, \(|p^* - q^*| = |f(p^*) - f(q^*)| \le r\,|p^* - q^*|\), which
+          forces \(|p^* - q^*| = 0\). Existence: the steps
+          \(|f^{n+1}(p) - f^n(p)| \le r^n |f(p) - p|\) shrink like a geometric
+          series, so the sequence is a Cauchy sequence and has a limit; the
+          limit is fixed because \(f\) is continuous. The estimate follows from
+          \(|f^n(p) - p^*| = |f^n(p) - f^n(p^*)| \le r^n |p - p^*|\).
+        </p>
+        <p>
+          For an affine contraction, the fixed point solves \(A p + b = p\):
+          \[ p^* = (I - A)^{-1}\, b . \]
+          The <a href="#2d-8">Heart spiral</a> preset is a single transform,
+          a turn of \(20^\circ\) and a scale of 0.9. Its generations are the
+          heart, its image, the image of that, and so on: they spiral in
+          towards \(p^* \approx (-0.454,\ 0.715)\), each 0.9 times the size of
+          the one before. The limit of the whole construction is that single
+          point, which is why the app gives its dimension as 0.
+        </p>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="ifs">
+        <h2><span class="num">3</span> Many copies: iterated function systems</h2>
+
+        <p>
+          With one contraction everything shrinks to a point. With several,
+          something much richer appears. An <em>iterated function system</em>
+          (IFS) is a finite list of contractions \(f_1, \dots, f_N\): the
+          transforms of the app. For any figure \(S\), let
+          \[ W(S) = f_1(S) \cup f_2(S) \cup \dots \cup f_N(S) , \tag{3.1} \]
+          the figure made of its \(N\) copies. \(W\) is the <em>Hutchinson
+          operator</em>. Starting from a shape \(S_0\), the app draws its
+          <em>generations</em>
+          \[ S_{n+1} = W(S_n), \qquad
+             S_n = \bigcup_{i_1, \dots, i_n} f_{i_1} \circ f_{i_2} \circ \dots \circ f_{i_n} (S_0) . \]
+          Generation \(n\) is made of \(N^n\) copies of the starting shape, one
+          for each list of \(n\) transforms; with all generations shown there
+          are \(1 + N + \dots + N^n = \frac{N^{n+1} - 1}{N - 1}\) of them, the
+          number the app counts when it limits Repeat.
+        </p>
+
+        <figure class="row">
+          <span><img src="images/notes/gen_triangle_0.png" alt="Generation 0: a triangle"><span class="pic_label">\(S_0\)</span></span>
+          <span><img src="images/notes/gen_triangle_1.png" alt="Generation 1: three half-size triangles"><span class="pic_label">\(S_1\)</span></span>
+          <span><img src="images/notes/gen_triangle_2.png" alt="Generation 2: nine triangles"><span class="pic_label">\(S_2\)</span></span>
+          <span><img src="images/notes/gen_triangle_3.png" alt="Generation 3: 27 triangles"><span class="pic_label">\(S_3\)</span></span>
+          <span><img src="images/notes/gen_triangle_6.png" alt="Generation 6: 729 triangles"><span class="pic_label">\(S_6\)</span></span>
+          <figcaption>The three transforms of the Sierpinski triangle,
+          \(f_i(p) = \tfrac12 p + b_i\) with \(b_1 = (0,0)\),
+          \(b_2 = (\tfrac12, 0)\), \(b_3 = (\tfrac14, \tfrac{\sqrt3}{4})\),
+          applied to a triangle: generations 0, 1, 2, 3 and 6
+          (<a href="index.html#r=6&amp;l=1&amp;s=triangle&amp;t=0,0,0,0.5;0.5,0,0,0.5;0.25,0.433,0,0.5">open</a>).</figcaption>
+        </figure>
+
+        <figure class="row">
+          <span><img src="images/notes/gen_square_0.png" alt="Generation 0: a square"><span class="pic_label">\(S_0\)</span></span>
+          <span><img src="images/notes/gen_square_1.png" alt="Generation 1: three half-size squares"><span class="pic_label">\(S_1\)</span></span>
+          <span><img src="images/notes/gen_square_2.png" alt="Generation 2: nine squares"><span class="pic_label">\(S_2\)</span></span>
+          <span><img src="images/notes/gen_square_3.png" alt="Generation 3: 27 squares"><span class="pic_label">\(S_3\)</span></span>
+          <span><img src="images/notes/gen_square_6.png" alt="Generation 6: 729 squares"><span class="pic_label">\(S_6\)</span></span>
+          <figcaption>The same three transforms applied to a square. After a
+          few generations the two rows cannot be told apart: the limit does
+          not depend on the starting shape.</figcaption>
+        </figure>
+
+        <p>
+          To say in what sense \(S_n\) tends to a limit, we need a distance
+          between figures. The <em>Hausdorff distance</em> between two closed
+          and bounded sets \(S\) and \(T\) is the least \(\varepsilon\) such
+          that each lies within \(\varepsilon\) of the other:
+          \[ d_H(S, T) = \max\Bigl\{ \sup_{s \in S} \operatorname{dist}(s, T),\
+                                     \sup_{t \in T} \operatorname{dist}(t, S) \Bigr\} . \]
+          With it, the nonempty closed and bounded sets form a complete metric
+          space, and \(W\) is a contraction there: if every \(f_i\) has factor
+          at most \(r\), then
+          \[ d_H\bigl(W(S), W(T)\bigr) \le r\, d_H(S, T) , \]
+          because each copy \(f_i(S)\) lies within \(r\, d_H(S,T)\) of
+          \(f_i(T)\). Banach's theorem, applied to \(W\), gives at once:
+        </p>
+        <div class="theorem">
+          <p><b>Hutchinson's theorem (1981).</b> An iterated function system
+          of contractions has exactly one nonempty closed and bounded set
+          \(\mathcal{A}\) with
+          \[ \mathcal{A} = f_1(\mathcal{A}) \cup \dots \cup f_N(\mathcal{A}) , \]
+          its <em>attractor</em>; and from any nonempty closed and bounded
+          starting shape, \(d_H(S_n, \mathcal{A}) \le r^n\, d_H(S_0, \mathcal{A}) \to 0\).</p>
+        </div>
+        <p>
+          The equation says that the attractor is made of \(N\) smaller copies
+          of itself: it is <em>self-similar</em> (or self-affine), and every
+          piece, magnified, shows the whole again. It also explains the
+          picture: the starting shape only decides what the early generations
+          look like, and is forgotten at the rate \(r^n\). With the
+          <em>Last generation only</em> box ticked, the app shows \(S_n\), an
+          approximation of \(\mathcal{A}\) to within \(r^n\) of its size; with
+          it unticked, it shows all of \(S_0, \dots, S_n\) together, which is
+          how the trees are usually drawn.
+        </p>
+        <p>
+          A point of the attractor can be named by an infinite list of
+          transforms \(i_1 i_2 i_3 \dots\), its <em>address</em>:
+          \[ p = \lim_{n \to \infty} f_{i_1} \circ f_{i_2} \circ \dots \circ f_{i_n}(x) , \]
+          the same limit for every starting point \(x\). In the Sierpinski
+          triangle, the address is a route: first which of the three corners'
+          triangles the point is in, then which of the three inside that, and
+          so on, like the digits of a number in base 3.
+        </p>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="fractal-dimension">
+        <h2><span class="num">4</span> Dimension</h2>
+
+        <p>
+          A segment, a square and a cube have dimensions 1, 2 and 3. One way to
+          see the number: cut the figure into small pieces of size
+          \(\varepsilon\) and count them. A segment needs about
+          \(1/\varepsilon\) pieces, a square \(1/\varepsilon^2\), a cube
+          \(1/\varepsilon^3\). For a figure that needs about
+          \(N(\varepsilon) \approx C\, \varepsilon^{-D}\) pieces, \(D\) is its
+          (box-counting) dimension:
+          \[ D = \lim_{\varepsilon \to 0} \frac{\log N(\varepsilon)}{\log(1/\varepsilon)} . \]
+        </p>
+        <h3>Self-similar figures</h3>
+        <p>
+          For an attractor made of \(N\) copies of itself, each scaled by
+          \(r\), the counting is easy: covering it with pieces of size
+          \(r\varepsilon\) takes \(N\) times as many as with pieces of size
+          \(\varepsilon\), since each copy is a small version of the whole.
+          So \(C (r\varepsilon)^{-D} = N C \varepsilon^{-D}\), that is
+          \(N r^D = 1\), and
+          \[ D = \frac{\log N}{\log (1/r)} . \tag{4.1} \]
+          A square is 4 copies of half its size: \(\log 4/\log 2 = 2\), as it
+          should be. The Sierpinski triangle is 3 copies of half its size:
+          \(D = \log 3/\log 2 \approx 1.585\), more than a curve, less than a
+          surface. The Koch curve is 4 copies of a third:
+          \(\log 4/\log 3 \approx 1.262\).
+        </p>
+        <p>
+          When the copies have different scales \(r_1, \dots, r_N\), the same
+          argument gives <em>Moran's equation</em> (1946): \(D\) is the one
+          number with
+          \[ r_1^D + r_2^D + \dots + r_N^D = 1 . \tag{4.2} \]
+          The left side decreases from \(N\) (at \(D = 0\)) towards 0, so there
+          is exactly one solution; the app finds it by bisection. For the
+          <a href="#2d-1">leaning tree</a>, with \(r_1 = \cos 30^\circ\) and
+          \(r_2 = \sin 30^\circ\), the solution is \(D = 2\), because
+          \(\cos^2 + \sin^2 = 1\). (The app shows 1.9998: it stores
+          \(\cos 30^\circ\) as 0.8660. Likewise it stores \(\tfrac13\) as 0.3333,
+          which turns the Koch curve's 1.2619 into 1.2617.)
+        </p>
+        <p>
+          The answer is the <em>similarity dimension</em>. It equals the
+          Hausdorff dimension of the attractor, the most careful notion of
+          fractional dimension, when the copies do not overlap too much
+          (Moran and Hutchinson's <em>open set condition</em>: there is an
+          open set \(U\) whose images \(f_i(U)\) lie inside \(U\) and do not
+          meet). When the copies overlap, (4.2) only gives an upper bound.
+          The app's <a href="#2d-12">maple leaf</a> shows about 2.38: a figure
+          in the plane cannot have dimension above 2, so the number simply
+          says that its copies overlap. Its true dimension is 2.
+        </p>
+        <h3>Self-affine figures</h3>
+        <p>
+          A stretched or slanted copy shrinks by different amounts in different
+          directions, by its singular values \(\sigma_1 \ge \sigma_2\). Covering
+          a thin ellipse of half-axes \(\sigma_1 \ge \sigma_2\) by squares of
+          side \(\sigma_2\) takes about \(\sigma_1/\sigma_2\) of them. Falconer
+          (1988) turned this into the <em>singular value function</em>
+          \[ \varphi^D(A) = \begin{cases}
+               \sigma_1^{D} & 0 \le D \le 1, \\
+               \sigma_1\, \sigma_2^{\,D-1} & 1 \le D \le 2, \\
+               (\sigma_1 \sigma_2)^{D/2} = |\det A|^{D/2} & D \ge 2,
+             \end{cases} \]
+          and the <em>affinity dimension</em>, the \(D\) with
+          \[ \sum_{i=1}^{N} \varphi^D(A_i) = 1 . \tag{4.3} \]
+          For similarities \(\varphi^D(A) = s^D\), and (4.3) is (4.2). Falconer
+          proved that (4.3) gives the Hausdorff dimension of the attractor for
+          almost every choice of the translations, when every
+          \(\sigma_1 < \tfrac13\) (Solomyak, 1998, extended this to
+          \(\sigma_1 < \tfrac12\)); in general it is an upper bound. This is
+          the number the app shows for stretched or slanted transforms, such
+          as the <a href="#2d-11">fern</a>'s 1.866. In \(d\) dimensions,
+          with singular values \(\sigma_1 \ge \dots \ge \sigma_d\) and
+          \(k = \lfloor D \rfloor\),
+          \[ \varphi^D(A) = \sigma_1 \cdots \sigma_k\, \sigma_{k+1}^{\,D-k}
+             \quad (D < d), \qquad \varphi^D(A) = |\det A|^{D/d} \quad (D \ge d), \]
+          which is how the 3D and 4D pages compute it.
+        </p>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="chaos">
+        <h2><span class="num">5</span> The chaos game</h2>
+
+        <figure class="side">
+          <a href="index.html#r=9&amp;l=1&amp;d=1&amp;c=0&amp;s=custom&amp;p=0.5,0;0.766,0.995&amp;k=0&amp;cs=0&amp;lw=1.5&amp;t=0.48,0,0,0.04,0,4,0;0.075,0.18,357.3,0.8509;0.4,0.045,49,0.3048,0,1.1173,-0.8;0.575,-0.086,120,0.3002,1,1.2075,10.6"><img src="images/notes/fern_dots.png" alt="Barnsley's fern drawn with random dots" loading="lazy"></a>
+          <figcaption>Barnsley's fern as random dots
+          (<a href="index.html#r=9&amp;l=1&amp;d=1&amp;c=0&amp;s=custom&amp;p=0.5,0;0.766,0.995&amp;k=0&amp;cs=0&amp;lw=1.5&amp;t=0.48,0,0,0.04,0,4,0;0.075,0.18,357.3,0.8509;0.4,0.045,49,0.3048,0,1.1173,-0.8;0.575,-0.086,120,0.3002,1,1.2075,10.6">open</a>).</figcaption>
+        </figure>
+        <p>
+          Drawing generations takes \(N^n\) copies, which grows very fast. The
+          <em>Random dots</em> drawing mode uses another idea, Barnsley's
+          <em>chaos game</em>. Start from any point \(x_0\), and repeat: pick
+          one of the transforms at random, the transform \(i\) with
+          probability \(p_i\), and move the point,
+          \[ x_{n+1} = f_{i_{n+1}}(x_n) . \]
+          Put a dot wherever the point lands. After a few steps every dot
+          lies on the attractor, up to an error that shrinks like \(r^n\):
+          \(x_n = f_{i_n} \circ \dots \circ f_{i_1}(x_0)\) is within
+          \(r^n \operatorname{dist}(x_0, \mathcal{A})\) of the point of
+          \(\mathcal{A}\) with the address \(i_n i_{n-1} \dots\). The dots then
+          wander over the whole attractor: with probability 1, every finite
+          address, and so every part of \(\mathcal{A}\), comes up again and
+          again.
+        </p>
+        <p>
+          How often the dots visit each part is decided by the probabilities.
+          Elton's ergodic theorem (1987) says that the share of dots in a
+          region tends to its weight under one particular measure \(\mu\) on
+          the attractor, the one with
+          \[ \mu = \sum_{i=1}^{N} p_i\ \mu \circ f_i^{-1} . \]
+          A copy \(f_i(\mathcal{A})\) has a share \(p_i\) of the dots and an
+          area in proportion to \(|\det A_i|\). To cover the figure evenly,
+          the app follows Barnsley's recipe,
+          \[ p_i \propto \max\bigl(|\det A_i|,\ \delta\bigr) , \]
+          with a small floor \(\delta\) (2% of the average) so that a flat
+          transform, such as the fern's stem with \(\det A \approx 0\), still
+          gets a few dots. When the view is zoomed in, the app goes further:
+          it cuts the attractor into small pieces
+          \(f_{i_1} \circ \dots \circ f_{i_k}(\mathcal{A})\), keeps those that
+          reach into the window, and plays the game inside them, so that no
+          dots are wasted off screen.
+        </p>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="presets2d">
+        <h2><span class="num">6</span> The flat presets</h2>
+        <p>
+          Each preset of the 2D page is a small IFS. Unless said otherwise,
+          its transforms are similarities and the dimension is given by
+          (4.1) or (4.2). A click on a picture opens it in the app, where
+          the green frames show the transforms.
+        </p>
+        <div class="gallery"><figure class="card" id="2d-0"><a class="pics" href="index.html#r=10&amp;l=0&amp;c=1&amp;cs=0&amp;lw=1.5&amp;t=0,1,45,0.7071;0.5,1.5,315,0.7071" title="Open Pythagoras tree in the app"><span class="pic"><img src="images/notes/2d_0.png" alt="Pythagoras tree" loading="lazy"></span></a><figcaption><b>Pythagoras tree</b> <a class="open" href="index.html#r=10&amp;l=0&amp;c=1&amp;cs=0&amp;lw=1.5&amp;t=0,1,45,0.7071;0.5,1.5,315,0.7071">open&nbsp;&rarr;</a><br>A square and two copies, scaled by \(1/\sqrt2\) and turned by \(\pm45^\circ\), sitting on its top side: the squares on the two shorter sides of a right isosceles triangle, as in Pythagoras' theorem. Moran's equation \(2\,(1/\sqrt2)^D = 1\) gives \(D = 2\): the crown covers an area.</figcaption></figure><figure class="card" id="2d-1"><a class="pics" href="index.html#r=12&amp;l=0&amp;c=1&amp;cs=0&amp;lw=1.5&amp;t=0,1,30,0.866;0.75,1.433,300,0.5" title="Open Leaning tree in the app"><span class="pic"><img src="images/notes/2d_1.png" alt="Leaning tree" loading="lazy"></span></a><figcaption><b>Leaning tree</b> <a class="open" href="index.html#r=12&amp;l=0&amp;c=1&amp;cs=0&amp;lw=1.5&amp;t=0,1,30,0.866;0.75,1.433,300,0.5">open&nbsp;&rarr;</a><br>The same with a 30°&ndash;60°&ndash;90° triangle: copies scaled by \(\cos 30^\circ = \tfrac{\sqrt3}{2}\) and \(\sin 30^\circ = \tfrac12\). Because \(\cos^2 + \sin^2 = 1\), Moran's equation is solved by \(D = 2\) again.</figcaption></figure><figure class="card" id="2d-2"><a class="pics" href="index.html#r=12&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,45,0.7071;0.5,0.5,315,0.7071" title="Open Lévy C curve in the app"><span class="pic"><img src="images/notes/2d_2.png" alt="Lévy C curve" loading="lazy"></span></a><figcaption><b>Lévy C curve</b> <a class="open" href="index.html#r=12&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,45,0.7071;0.5,0.5,315,0.7071">open&nbsp;&rarr;</a><br>Two copies of a segment scaled by \(1/\sqrt2\), turned by \(+45^\circ\) and \(-45^\circ\): the segment becomes the two short sides of a right triangle, again and again (Lévy, 1938). The limit curve fills whole patches of the plane: its dimension is 2; its boundary has dimension about 1.934.</figcaption></figure><figure class="card" id="2d-3"><a class="pics" href="index.html#r=12&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,45,0.7071;1,0,135,0.7071" title="Open Dragon curve in the app"><span class="pic"><img src="images/notes/2d_3.png" alt="Dragon curve" loading="lazy"></span></a><figcaption><b>Dragon curve</b> <a class="open" href="index.html#r=12&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,45,0.7071;1,0,135,0.7071">open&nbsp;&rarr;</a><br>Heighway's dragon: as the C curve, but the second copy is turned by \(135^\circ\) and starts at the far end, as a strip of paper folded in half again and again and opened at right angles. It has area (dimension 2); its boundary has dimension about 1.5236.</figcaption></figure><figure class="card" id="2d-4"><a class="pics" href="index.html#r=5&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,0,0.3333;0.3333,0,60,0.3333;0.5,0.2887,300,0.3333;0.6667,0,0,0.3333" title="Open Koch curve in the app"><span class="pic"><img src="images/notes/2d_4.png" alt="Koch curve" loading="lazy"></span></a><figcaption><b>Koch curve</b> <a class="open" href="index.html#r=5&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,0,0.3333;0.3333,0,60,0.3333;0.5,0.2887,300,0.3333;0.6667,0,0,0.3333">open&nbsp;&rarr;</a><br>Four copies of a segment, a third the size, the middle two raised into a tent at \(60^\circ\). Length grows by \(\tfrac43\) each generation, so the limit has infinite length, and \(D = \log 4/\log 3 \approx 1.262\).</figcaption></figure><figure class="card" id="2d-5"><a class="pics" href="index.html#r=7&amp;l=0&amp;c=1&amp;s=triangle&amp;cs=0&amp;lw=1.5&amp;t=0,0,0,0.5;0.5,0,0,0.5;0.25,0.433,0,0.5" title="Open Sierpinski triangle in the app"><span class="pic"><img src="images/notes/2d_5.png" alt="Sierpinski triangle" loading="lazy"></span></a><figcaption><b>Sierpinski triangle</b> <a class="open" href="index.html#r=7&amp;l=0&amp;c=1&amp;s=triangle&amp;cs=0&amp;lw=1.5&amp;t=0,0,0,0.5;0.5,0,0,0.5;0.25,0.433,0,0.5">open&nbsp;&rarr;</a><br>Three half-size copies at the corners of a triangle. The area left after \(n\) generations is \((\tfrac34)^n\) of the first, which tends to 0, and \(D = \log 3/\log 2 \approx 1.585\).</figcaption></figure><figure class="card" id="2d-6"><a class="pics" href="index.html#r=7&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,60,0.5,1;0.25,0.433,0,0.5;0.75,0.433,300,0.5,1" title="Open Sierpinski arrowhead in the app"><span class="pic"><img src="images/notes/2d_6.png" alt="Sierpinski arrowhead" loading="lazy"></span></a><figcaption><b>Sierpinski arrowhead</b> <a class="open" href="index.html#r=7&amp;l=1&amp;c=1&amp;s=line&amp;cs=0&amp;lw=1.5&amp;t=0,0,60,0.5,1;0.25,0.433,0,0.5;0.75,0.433,300,0.5,1">open&nbsp;&rarr;</a><br>The same set as the Sierpinski triangle, drawn as one unbroken curve: two of the three copies are mirrored, so that the end of each copy meets the start of the next.</figcaption></figure><figure class="card" id="2d-7"><a class="pics" href="index.html#r=9&amp;l=0&amp;c=1&amp;s=heart&amp;f=1&amp;cs=0&amp;lw=1.5&amp;t=0,1,45,0.7071;0.5,1.5,315,0.7071" title="Open Tree of hearts in the app"><span class="pic"><img src="images/notes/2d_7.png" alt="Tree of hearts" loading="lazy"></span></a><figcaption><b>Tree of hearts</b> <a class="open" href="index.html#r=9&amp;l=0&amp;c=1&amp;s=heart&amp;f=1&amp;cs=0&amp;lw=1.5&amp;t=0,1,45,0.7071;0.5,1.5,315,0.7071">open&nbsp;&rarr;</a><br>The Pythagoras tree with a heart as the starting shape. Only the early generations show the hearts; the limit (the crown) is the same as for the tree, whatever the starting shape: the starting shape is forgotten, as section 3 proves.</figcaption></figure><figure class="card" id="2d-8"><a class="pics" href="index.html#r=40&amp;l=0&amp;c=1&amp;s=heart&amp;f=1&amp;cs=0&amp;lw=1.5&amp;t=0.15,0.25,20,0.9" title="Open Heart spiral in the app"><span class="pic"><img src="images/notes/2d_8.png" alt="Heart spiral" loading="lazy"></span></a><figcaption><b>Heart spiral</b> <a class="open" href="index.html#r=40&amp;l=0&amp;c=1&amp;s=heart&amp;f=1&amp;cs=0&amp;lw=1.5&amp;t=0.15,0.25,20,0.9">open&nbsp;&rarr;</a><br>A single transform, scaled by 0.9 and turned by \(20^\circ\). By Banach's theorem its copies wind towards one point, \(p^* = (I - A)^{-1} b \approx (-0.454,\ 0.715)\): the attractor is that point, and the dimension shown is 0.</figcaption></figure><figure class="card" id="2d-9"><a class="pics" href="index.html#r=5&amp;l=0&amp;c=1&amp;cs=0&amp;lw=1.5&amp;t=0.3333,0,0,0.3333;0,0.3333,0,0.3333;0.3333,0.3333,0,0.3333;0.6667,0.3333,0,0.3333;0.3333,0.6667,0,0.3333" title="Open Vicsek cross in the app"><span class="pic"><img src="images/notes/2d_9.png" alt="Vicsek cross" loading="lazy"></span></a><figcaption><b>Vicsek cross</b> <a class="open" href="index.html#r=5&amp;l=0&amp;c=1&amp;cs=0&amp;lw=1.5&amp;t=0.3333,0,0,0.3333;0,0.3333,0,0.3333;0.3333,0.3333,0,0.3333;0.6667,0.3333,0,0.3333;0.3333,0.6667,0,0.3333">open&nbsp;&rarr;</a><br>Five of the nine squares a third the size: the middle and the four sides. \(D = \log 5/\log 3 \approx 1.465\).</figcaption></figure><figure class="card" id="2d-10"><a class="pics" href="index.html#r=6&amp;l=0&amp;c=1&amp;s=custom&amp;p=0.5,1;0.46,0.998;0.421,0.994;0.382,0.986;0.344,0.975;0.306,0.961;0.27,0.944;0.236,0.924;0.203,0.902;0.172,0.877;0.143,0.85;0.116,0.821;0.092,0.789;0.07,0.756;0.051,0.721;0.035,0.684;0.022,0.647;0.012,0.608;0.005,0.569;0.001,0.53;0,0.49;0.002,0.45;0.008,0.411;0.017,0.372;0.028,0.334;0.043,0.297;0.061,0.262;0.081,0.227;0.104,0.195;0.129,0.164;0.157,0.136;0.187,0.11;0.219,0.086;0.253,0.065;0.288,0.047;0.325,0.032;0.363,0.019;0.401,0.01;0.44,0.004;0.48,0;0.52,0;0.56,0.004;0.599,0.01;0.637,0.019;0.675,0.032;0.712,0.047;0.747,0.065;0.781,0.086;0.813,0.11;0.843,0.136;0.871,0.164;0.896,0.195;0.919,0.227;0.939,0.262;0.957,0.297;0.972,0.334;0.983,0.372;0.992,0.411;0.998,0.45;1,0.49;0.999,0.53;0.995,0.569;0.988,0.608;0.978,0.647;0.965,0.684;0.949,0.721;0.93,0.756;0.908,0.789;0.884,0.821;0.857,0.85;0.828,0.877;0.797,0.902;0.764,0.924;0.73,0.944;0.694,0.961;0.656,0.975;0.618,0.986;0.579,0.994;0.54,0.998;0.5,1;0.467,0.998;0.435,0.991;0.404,0.981;0.375,0.967;0.348,0.948;0.323,0.927;0.302,0.902;0.283,0.875;0.269,0.846;0.259,0.815;0.252,0.783;0.25,0.75;0.252,0.717;0.259,0.685;0.269,0.654;0.283,0.625;0.302,0.598;0.323,0.573;0.348,0.552;0.375,0.533;0.404,0.519;0.435,0.509;0.467,0.502;0.5,0.5;0.533,0.498;0.565,0.491;0.596,0.481;0.625,0.467;0.652,0.448;0.677,0.427;0.698,0.402;0.717,0.375;0.731,0.346;0.741,0.315;0.748,0.283;0.75,0.25;0.748,0.217;0.741,0.185;0.731,0.154;0.717,0.125;0.698,0.098;0.677,0.073;0.652,0.052;0.625,0.033;0.596,0.019;0.565,0.009;0.533,0.002;0.5,0&amp;k=0&amp;cs=0&amp;lw=1.5&amp;t=0.42,0.17,0,0.16;0.42,0.67,0,0.16" title="Open Taiji lines in the app"><span class="pic"><img src="images/notes/2d_10.png" alt="Taiji lines" loading="lazy"></span></a><figcaption><b>Taiji lines</b> <a class="open" href="index.html#r=6&amp;l=0&amp;c=1&amp;s=custom&amp;p=0.5,1;0.46,0.998;0.421,0.994;0.382,0.986;0.344,0.975;0.306,0.961;0.27,0.944;0.236,0.924;0.203,0.902;0.172,0.877;0.143,0.85;0.116,0.821;0.092,0.789;0.07,0.756;0.051,0.721;0.035,0.684;0.022,0.647;0.012,0.608;0.005,0.569;0.001,0.53;0,0.49;0.002,0.45;0.008,0.411;0.017,0.372;0.028,0.334;0.043,0.297;0.061,0.262;0.081,0.227;0.104,0.195;0.129,0.164;0.157,0.136;0.187,0.11;0.219,0.086;0.253,0.065;0.288,0.047;0.325,0.032;0.363,0.019;0.401,0.01;0.44,0.004;0.48,0;0.52,0;0.56,0.004;0.599,0.01;0.637,0.019;0.675,0.032;0.712,0.047;0.747,0.065;0.781,0.086;0.813,0.11;0.843,0.136;0.871,0.164;0.896,0.195;0.919,0.227;0.939,0.262;0.957,0.297;0.972,0.334;0.983,0.372;0.992,0.411;0.998,0.45;1,0.49;0.999,0.53;0.995,0.569;0.988,0.608;0.978,0.647;0.965,0.684;0.949,0.721;0.93,0.756;0.908,0.789;0.884,0.821;0.857,0.85;0.828,0.877;0.797,0.902;0.764,0.924;0.73,0.944;0.694,0.961;0.656,0.975;0.618,0.986;0.579,0.994;0.54,0.998;0.5,1;0.467,0.998;0.435,0.991;0.404,0.981;0.375,0.967;0.348,0.948;0.323,0.927;0.302,0.902;0.283,0.875;0.269,0.846;0.259,0.815;0.252,0.783;0.25,0.75;0.252,0.717;0.259,0.685;0.269,0.654;0.283,0.625;0.302,0.598;0.323,0.573;0.348,0.552;0.375,0.533;0.404,0.519;0.435,0.509;0.467,0.502;0.5,0.5;0.533,0.498;0.565,0.491;0.596,0.481;0.625,0.467;0.652,0.448;0.677,0.427;0.698,0.402;0.717,0.375;0.731,0.346;0.741,0.315;0.748,0.283;0.75,0.25;0.748,0.217;0.741,0.185;0.731,0.154;0.717,0.125;0.698,0.098;0.677,0.073;0.652,0.052;0.625,0.033;0.596,0.019;0.565,0.009;0.533,0.002;0.5,0&amp;k=0&amp;cs=0&amp;lw=1.5&amp;t=0.42,0.17,0,0.16;0.42,0.67,0,0.16">open&nbsp;&rarr;</a><br>The taiji drawn as lines, with a copy at \(0.16\) of the size in each eye. The attractor itself is a Cantor set of points on the line through the eyes, of dimension \(\log 2/\log(1/0.16) \approx 0.378\); the drawing shows all the generations, symbols inside symbols.</figcaption></figure><figure class="card" id="2d-11"><a class="pics" href="index.html#r=9&amp;l=1&amp;c=1&amp;s=custom&amp;p=0.5,0;0.766,0.995&amp;k=0&amp;cs=0&amp;lw=1.5&amp;t=0.48,0,0,0.04,0,4,0;0.075,0.18,357.3,0.8509;0.4,0.045,49,0.3048,0,1.1173,-0.8;0.575,-0.086,120,0.3002,1,1.2075,10.6" title="Open Barnsley fern in the app"><span class="pic"><img src="images/notes/2d_11.png" alt="Barnsley fern" loading="lazy"></span></a><figcaption><b>Barnsley fern</b> <a class="open" href="index.html#r=9&amp;l=1&amp;c=1&amp;s=custom&amp;p=0.5,0;0.766,0.995&amp;k=0&amp;cs=0&amp;lw=1.5&amp;t=0.48,0,0,0.04,0,4,0;0.075,0.18,357.3,0.8509;0.4,0.045,49,0.3048,0,1.1173,-0.8;0.575,-0.086,120,0.3002,1,1.2075,10.6">open&nbsp;&rarr;</a><br>Barnsley's fern: four affine maps (1988). A flattened copy is the stem, a copy turned a little and scaled by 0.85 is the whole fern above the lowest pair of fronds, and two slanted, stretched copies are those fronds. The dimension shown is the affinity dimension, about 1.866.</figcaption></figure><figure class="card" id="2d-12"><a class="pics" href="index.html#r=9&amp;l=1&amp;c=1&amp;s=dot&amp;cs=0&amp;lw=1.5&amp;t=0.413,0.0485,0,0.14,0,3.6429,1.1;0.2485,0.3625,313.7,0.6224,0,1.159,-0.2;0.277,-0.081,46.2,0.6507,0,1.0435,0.1;0.258,0.488,0,0.49,0,1.0408,0" title="Open Maple leaf in the app"><span class="pic"><img src="images/notes/2d_12.png" alt="Maple leaf" loading="lazy"></span></a><figcaption><b>Maple leaf</b> <a class="open" href="index.html#r=9&amp;l=1&amp;c=1&amp;s=dot&amp;cs=0&amp;lw=1.5&amp;t=0.413,0.0485,0,0.14,0,3.6429,1.1;0.2485,0.3625,313.7,0.6224,0,1.159,-0.2;0.277,-0.081,46.2,0.6507,0,1.0435,0.1;0.258,0.488,0,0.49,0,1.0408,0">open&nbsp;&rarr;</a><br>Four affine copies of a leaf, stretched and slanted. They overlap, so the number from Moran's equation (about 2.38) is above 2: that is impossible for a set in the plane, and it only says the copies overlap. The leaf has area: its real dimension is 2.</figcaption></figure></div>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="space">
+        <h2><span class="num">7</span> Three dimensions</h2>
+
+        <p>
+          Nothing in sections 2 to 5 used the plane in particular: they hold
+          word for word in space, with points \(p = (x, y, z)\), \(3 \times 3\)
+          matrices and affine maps \(f(p) = A p + b\), now given by twelve
+          numbers. The starting shape of the 3D page is the unit cube
+          \([0,1]^3\).
+        </p>
+        <h3>Turning in space</h3>
+        <p>
+          In space, a turn happens about an axis. About the three coordinate
+          axes,
+          \[ R_x(\alpha) = \begin{pmatrix} 1 & 0 & 0 \\ 0 & \cos\alpha & -\sin\alpha \\ 0 & \sin\alpha & \cos\alpha \end{pmatrix}, \quad
+             R_y(\beta) = \begin{pmatrix} \cos\beta & 0 & \sin\beta \\ 0 & 1 & 0 \\ -\sin\beta & 0 & \cos\beta \end{pmatrix}, \quad
+             R_z(\gamma) = \begin{pmatrix} \cos\gamma & -\sin\gamma & 0 \\ \sin\gamma & \cos\gamma & 0 \\ 0 & 0 & 1 \end{pmatrix}. \]
+          Unlike turns in the plane, these do not commute: a quarter turn about
+          X and then about Y does not end where a quarter turn about Y and then
+          about X does. So the order has to be fixed. A transform box of the 3D
+          page holds the angles \(\alpha, \beta, \gamma\) ("Turn X, Y, Z"), the
+          sizes \(s_x, s_y, s_z\), whether it is mirrored (\(m = \pm 1\)) and
+          the move \(b\), and makes
+          \[ A = R_y(\beta)\, R_x(\alpha)\, R_z(\gamma)\,
+                 \operatorname{diag}(m\, s_x,\ s_y,\ s_z) . \tag{7.1} \]
+          Read from the right again: resize (and mirror), tilt about Z, then
+          about X, then turn about the upright Y axis. These are
+          <em>Euler angles</em>, and every turn of space can be written this
+          way. By Euler's rotation theorem every turn of space is in fact a
+          turn about a single axis; the three angles are just a convenient
+          way to set it.
+        </p>
+        <h3>Seeing it on a flat screen</h3>
+        <p>
+          The picture is drawn in perspective. The view is turned (Yaw and
+          Pitch, by dragging), then a point at depth \(z\) towards the viewer,
+          who sits at distance \(D\), is drawn at
+          \[ (x', y') = \frac{D}{D - z}\,(x, y) , \]
+          so that nearer things look bigger. The cubes are painted from the
+          farthest to the nearest (the <em>painter's algorithm</em>), each face
+          only if it faces the viewer (if its outward normal \(n\) points
+          towards the eye), and with a brightness that grows with
+          \(n \cdot \ell\), the cosine of the angle between the face and the
+          light \(\ell\) (<em>Lambert's law</em>).
+        </p>
+        <figure class="row">
+          <span><img src="images/notes/menger_0.png" alt="Menger sponge, generation 0"><span class="pic_label">\(n = 0\)</span></span>
+          <span><img src="images/notes/menger_1.png" alt="Menger sponge, generation 1"><span class="pic_label">1</span></span>
+          <span><img src="images/notes/menger_2.png" alt="Menger sponge, generation 2"><span class="pic_label">2</span></span>
+          <span><img src="images/notes/menger_3.png" alt="Menger sponge, generation 3"><span class="pic_label">3</span></span>
+          <figcaption>Generations of the Menger sponge: 1, 20, 400 and 8000
+          cubes.</figcaption>
+        </figure>
+        <h3>The presets in space</h3>
+        <div class="gallery"><figure class="card" id="3d-0"><a class="pics" href="3d.html#r=3&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333" title="Open Menger sponge in the app"><span class="pic"><img src="images/notes/3d_0.png" alt="Menger sponge" loading="lazy"></span></a><figcaption><b>Menger sponge</b> <a class="open" href="3d.html#r=3&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333">open&nbsp;&rarr;</a><br>Twenty of the 27 cubes a third the size: all but the middle one and the middles of the six faces. \(D = \log 20/\log 3 \approx 2.727\). Its volume after \(n\) generations is \((\tfrac{20}{27})^n \to 0\), while its surface area grows without bound.</figcaption></figure><figure class="card" id="3d-1"><a class="pics" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0.25,0,0.433,0,0,0,0.5,0.5,0.5;0.25,0.4082,0.1443,0,0,0,0.5,0.5,0.5" title="Open Sierpinski tetrahedron in the app"><span class="pic"><img src="images/notes/3d_1.png" alt="Sierpinski tetrahedron" loading="lazy"></span></a><figcaption><b>Sierpinski tetrahedron</b> <a class="open" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0.25,0,0.433,0,0,0,0.5,0.5,0.5;0.25,0.4082,0.1443,0,0,0,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Four half-size copies at the corners of a tetrahedron: \(D = \log 4/\log 2 = 2\), exactly. A solid-looking object of dimension 2; seen along the right direction, its shadow is a full square.</figcaption></figure><figure class="card" id="3d-2"><a class="pics" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0,0,0.5,0,0,0,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0.5,0.5,0.5;0.25,0.3536,0.25,0,0,0,0.5,0.5,0.5" title="Open Sierpinski pyramid in the app"><span class="pic"><img src="images/notes/3d_2.png" alt="Sierpinski pyramid" loading="lazy"></span></a><figcaption><b>Sierpinski pyramid</b> <a class="open" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.5,0.5,0.5;0.5,0,0,0,0,0,0.5,0.5,0.5;0,0,0.5,0,0,0,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0.5,0.5,0.5;0.25,0.3536,0.25,0,0,0,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Five half-size copies: four on the corners of a square base, one on top. \(D = \log 5/\log 2 \approx 2.322\).</figcaption></figure><figure class="card" id="3d-3"><a class="pics" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.5,0.25,0.25,0,0,0,0.5,0.5,0.5;0,0.25,0.25,0,0,0,0.5,0.5,0.5;0.25,0.5,0.25,0,0,0,0.5,0.5,0.5;0.25,0,0.25,0,0,0,0.5,0.5,0.5;0.25,0.25,0.5,0,0,0,0.5,0.5,0.5;0.25,0.25,0,0,0,0,0.5,0.5,0.5" title="Open Octahedron flake in the app"><span class="pic"><img src="images/notes/3d_3.png" alt="Octahedron flake" loading="lazy"></span></a><figcaption><b>Octahedron flake</b> <a class="open" href="3d.html#r=5&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.5,0.25,0.25,0,0,0,0.5,0.5,0.5;0,0.25,0.25,0,0,0,0.5,0.5,0.5;0.25,0.5,0.25,0,0,0,0.5,0.5,0.5;0.25,0,0.25,0,0,0,0.5,0.5,0.5;0.25,0.25,0.5,0,0,0,0.5,0.5,0.5;0.25,0.25,0,0,0,0,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Six half-size copies pushed out to the six faces of the cube, which make an octahedron. \(D = \log 6/\log 2 \approx 2.585\).</figcaption></figure><figure class="card" id="3d-4"><a class="pics" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333" title="Open Cross of crosses in the app"><span class="pic"><img src="images/notes/3d_4.png" alt="Cross of crosses" loading="lazy"></span></a><figcaption><b>Cross of crosses</b> <a class="open" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333;0.3333,0.3333,0.6667,0,0,0,0.3333,0.3333,0.3333;0.3333,0.6667,0.3333,0,0,0,0.3333,0.3333,0.3333;0.6667,0.3333,0.3333,0,0,0,0.3333,0.3333,0.3333">open&nbsp;&rarr;</a><br>The Vicsek cross in space: the middle cube and the middles of the six faces, a third the size. \(D = \log 7/\log 3 \approx 1.771\).</figcaption></figure><figure class="card" id="3d-5"><a class="pics" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333" title="Open Cantor dust in the app"><span class="pic"><img src="images/notes/3d_5.png" alt="Cantor dust" loading="lazy"></span></a><figcaption><b>Cantor dust</b> <a class="open" href="3d.html#r=4&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0.3333,0.3333,0.3333;0,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0,0.6667,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0,0,0,0,0.3333,0.3333,0.3333;0.6667,0.6667,0.6667,0,0,0,0.3333,0.3333,0.3333">open&nbsp;&rarr;</a><br>The eight corner cubes a third the size. It is the Cantor set times itself three times, and \(D = \log 8/\log 3 = 3 \cdot \tfrac{\log 2}{\log 3} \approx 1.893\): three times the dimension of the Cantor set.</figcaption></figure><figure class="card" id="3d-6"><a class="pics" href="3d.html#r=7&amp;l=1&amp;s=1&amp;d=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.49,0,0.49,0,0,0,0.02,0.18,0.02;0.075,0.11,0.075,-6.7,0,0,0.85,0.8559,0.8559;0.4,-0.02,0.35,0,0,45,0.2828,0.2828,0.3;0.6,-0.02,0.35,0,0,-45,0.2828,0.2828,0.3,1" title="Open Fern in the app"><span class="pic"><img src="images/notes/3d_6.png" alt="Fern" loading="lazy"></span></a><figcaption><b>Fern</b> <a class="open" href="3d.html#r=7&amp;l=1&amp;s=1&amp;d=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.49,0,0.49,0,0,0,0.02,0.18,0.02;0.075,0.11,0.075,-6.7,0,0,0.85,0.8559,0.8559;0.4,-0.02,0.35,0,0,45,0.2828,0.2828,0.3;0.6,-0.02,0.35,0,0,-45,0.2828,0.2828,0.3,1">open&nbsp;&rarr;</a><br>Barnsley's fern given depth: the fronds curl a little out of the plane. Its main copy shrinks so little (0.85) that cubes stay large for many generations, so it is drawn with random dots. Affinity dimension about 1.759.</figcaption></figure><figure class="card" id="3d-7"><a class="pics" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.475,0,0.475,0,0,0,0.05,0.4,0.05;0.0902,0.4,0.6098,0,60,0,0.6,0.6,0.6;0.328,0.2795,0.29,0,0,35,0.42,0.42,0.42;0.4041,0.2795,0.754,0,120,35,0.42,0.42,0.42;0.7679,0.2795,0.456,0,-120,35,0.42,0.42,0.42" title="Open Tree in the app"><span class="pic"><img src="images/notes/3d_7.png" alt="Tree" loading="lazy"></span></a><figcaption><b>Tree</b> <a class="open" href="3d.html#r=6&amp;l=1&amp;s=1&amp;c=generation&amp;p=0&amp;v=-30,20&amp;t=0.475,0,0.475,0,0,0,0.05,0.4,0.05;0.0902,0.4,0.6098,0,60,0,0.6,0.6,0.6;0.328,0.2795,0.29,0,0,35,0.42,0.42,0.42;0.4041,0.2795,0.754,0,120,35,0.42,0.42,0.42;0.7679,0.2795,0.456,0,-120,35,0.42,0.42,0.42">open&nbsp;&rarr;</a><br>A thin trunk, its top turned and scaled by 0.6, and three branches scaled by 0.42 leaning out around it. Affinity dimension about 1.878.</figcaption></figure></div>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="hyper">
+        <h2><span class="num">8</span> Four dimensions</h2>
+
+        <p>
+          Once more the algebra does not change: a point of four-dimensional
+          space is \(p = (x, y, z, w)\), a transform is \(f(p) = A p + b\) with
+          a \(4 \times 4\) matrix (twenty numbers), and Hutchinson's theorem,
+          Moran's equation and the chaos game hold as before. The new
+          direction, W, is at right angles to X, Y and Z. What changes is that
+          we can no longer simply look at the result.
+        </p>
+
+        <h3>The tesseract</h3>
+        <p>
+          The starting shape of the 4D page is the unit <em>tesseract</em>
+          \([0,1]^4\), the four-dimensional cube. Its corners are the 16 points
+          with coordinates 0 or 1. Its parts are counted in the same way as for
+          the square and the cube: a part of dimension \(k\) is found by
+          letting \(k\) of the four coordinates vary and fixing the others to 0
+          or 1, so there are
+          \[ \binom{4}{k}\, 2^{\,4-k} \]
+          of them: 16 corners, 32 edges, 24 squares and 8 cubes. (Check:
+          \(16 - 32 + 24 - 8 = 0\), Euler's formula for a four-dimensional
+          solid.) Just as a cube is bounded by 6 squares, the tesseract is
+          bounded by 8 cubes, the <em>cells</em> \(x_k = 0\) and \(x_k = 1\).
+        </p>
+
+        <h3>Turning in four dimensions</h3>
+        <p>
+          In the plane a turn moves every point except the centre; in space it
+          leaves an axis in place. In four dimensions a turn leaves a whole
+          plane in place: a turn happens in a plane, not about an axis. Turning
+          by \(\theta\) in the plane of X and W, for example, is
+          \[ P_{xw}(\theta) = \begin{pmatrix}
+               \cos\theta & 0 & 0 & -\sin\theta \\
+               0 & 1 & 0 & 0 \\
+               0 & 0 & 1 & 0 \\
+               \sin\theta & 0 & 0 & \cos\theta
+             \end{pmatrix}, \]
+          which moves X towards W and leaves the YZ plane alone. There are
+          \(\binom42 = 6\) coordinate planes, XY, XZ, XW, YZ, YW and ZW, so a
+          transform box of the 4D page has six turns, and
+          \[ A = P_{xy}(\theta_1)\, P_{xz}(\theta_2)\, P_{xw}(\theta_3)\,
+                 P_{yz}(\theta_4)\, P_{yw}(\theta_5)\, P_{zw}(\theta_6)\,
+                 \operatorname{diag}(m\, s_x,\ s_y,\ s_z,\ s_w) . \tag{8.1} \]
+          Every turn of four-dimensional space can be written this way. That
+          is how the app turns a drag on the figure, which can produce any
+          turn \(Q\), back into six angles: it clears the entries of \(Q\)
+          below the diagonal one by one with plane turns (<em>Givens
+          rotations</em>, as in a QR factorisation), and the angles it used
+          are the answer.
+        </p>
+        <p>
+          Something new can happen in four dimensions: a turn in two planes at
+          once that have only the origin in common, such as XY and ZW. Such a
+          <em>double rotation</em> leaves no point but the origin where it is,
+          and has no axis or fixed plane at all. When both angles are equal, as
+          in the <a href="#4d-10">Clifford spiral</a>, every point turns by the
+          same angle (an <em>isoclinic</em> rotation).
+        </p>
+
+        <h3>Seeing four dimensions</h3>
+        <p>
+          In Edwin Abbott's <em>Flatland</em> (1884), a sphere visits a world
+          of two dimensions. The flat people can see only where it crosses
+          their plane: a point that grows into a circle, then shrinks back to
+          a point and vanishes. To them, the sphere is a circle that changes
+          in time. We are in the same position with four dimensions, and the
+          4D page uses the two ways out of it, both as animations.
+        </p>
+        <p>
+          <b>Slices.</b> Show only the part of the figure where \(w\) is near a
+          value \(w_0\), and move \(w_0\) through the figure. For the copies of
+          the tesseract, the app cuts each one by the hyperplane \(w = w_0\):
+          each of its eight cells that the hyperplane crosses gives one face of
+          the cut, a polygon through the points where the hyperplane crosses
+          the cell's edges (where the \(w\) of the two ends lies on either side
+          of \(w_0\)).
+        </p>
+        <figure class="row">
+          <span><img src="images/notes/cell5_slice_10.png" alt="Slice of the 5-cell at 10%"><span class="pic_label">10%</span></span>
+          <span><img src="images/notes/cell5_slice_35.png" alt="Slice of the 5-cell at 35%"><span class="pic_label">35%</span></span>
+          <span><img src="images/notes/cell5_slice_60.png" alt="Slice of the 5-cell at 60%"><span class="pic_label">60%</span></span>
+          <span><img src="images/notes/cell5_slice_85.png" alt="Slice of the 5-cell at 85%"><span class="pic_label">85%</span></span>
+          <figcaption>Slices of the Sierpinski 5-cell, going up through W.
+          Below the middle they cut the four copies at the corners of the
+          base; above it, only the copy at the fifth corner is left.</figcaption>
+        </figure>
+        <p>
+          <b>Turning and perspective.</b> Turn the whole figure by an angle
+          \(\alpha\) in a plane that mixes W with a direction we see, say XW,
+          about its centre \(c\), and look at it along W with perspective, as
+          a camera looks along its depth: the point \(q = P_{xw}(\alpha)(p - c)\)
+          is drawn in space at
+          \[ c + \frac{d}{d - q_w}\,(q_x,\ q_y,\ q_z) , \qquad d = 3\rho , \tag{8.2} \]
+          where \(\rho\) is the radius of the figure. Parts further along W
+          (larger \(q_w\), nearer the eye) look larger. A tesseract seen this
+          way is the well-known "cube inside a cube": the near cell is the
+          large cube, the far cell the small one, and six cells join them. As
+          \(\alpha\) grows, cells move from the inside to the outside: the
+          tesseract seems to turn inside out.
+        </p>
+        <figure class="row">
+          <span><img src="images/notes/tess_turn_0.png" alt="The tesseract at 0 degrees"><span class="pic_label">\(0^\circ\)</span></span>
+          <span><img src="images/notes/tess_turn_30.png" alt="The tesseract at 30 degrees"><span class="pic_label">\(30^\circ\)</span></span>
+          <span><img src="images/notes/tess_turn_60.png" alt="The tesseract at 60 degrees"><span class="pic_label">\(60^\circ\)</span></span>
+          <span><img src="images/notes/tess_turn_90.png" alt="The tesseract at 90 degrees"><span class="pic_label">\(90^\circ\)</span></span>
+          <figcaption>The tesseract turning in the XW plane, drawn as its 32
+          edges. At \(0^\circ\) and \(90^\circ\) it is a cube inside a cube; in
+          between, X and W are mixed.</figcaption>
+        </figure>
+        <p>
+          With <em>Solid shapes</em>, only the outside of each copy is drawn,
+          the 4D counterpart of skipping the faces of a cube that face away.
+          Take the eye, the point \(e\) at distance \(d\) along W from the
+          centre, and write it in the copy's own coordinates (those in which
+          the copy, after the turn, is the unit tesseract), \(u = A^{-1}(e - b)\). The cell
+          \(x_k = 0\) of the copy faces the eye when \(u_k < 0\), and the cell
+          \(x_k = 1\) when \(u_k > 1\). Each square of the tesseract lies
+          between two cells, and it is on the outline of the solid exactly
+          when one of its two cells faces the eye and the other does not.
+        </p>
+        <figure class="row">
+          <span><img src="images/notes/tess_solid_0.png" alt="The solid tesseract at 0 degrees"><span class="pic_label">\(0^\circ\)</span></span>
+          <span><img src="images/notes/tess_solid_30.png" alt="The solid tesseract at 30 degrees"><span class="pic_label">\(30^\circ\)</span></span>
+          <span><img src="images/notes/tess_solid_60.png" alt="The solid tesseract at 60 degrees"><span class="pic_label">\(60^\circ\)</span></span>
+          <span><img src="images/notes/tess_solid_90.png" alt="The solid tesseract at 90 degrees"><span class="pic_label">\(90^\circ\)</span></span>
+          <figcaption>The same turn, solid: the outside of the tesseract's
+          shadow in space.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="presets4d">
+        <h2><span class="num">9</span> The four-dimensional presets</h2>
+        <p>
+          Each card shows the figure turned by \(30^\circ\) through W, and a
+          slice. Several of them are built from simpler figures: the
+          <em>product</em> of two self-similar sets with the same scale,
+          \(\mathcal{A} \times \mathcal{B}\), is self-similar with
+          \(N_{\mathcal{A}} N_{\mathcal{B}}\) copies, so its dimension is
+          \[ \frac{\log (N_{\mathcal{A}} N_{\mathcal{B}})}{\log(1/r)}
+             = \dim \mathcal{A} + \dim \mathcal{B} . \]
+        </p>
+        <div class="gallery wide"><figure class="card" id="4d-0"><a class="pics" href="4d.html#r=5&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.5,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5" title="Open Sierpinski 5-cell in the app"><span class="pic"><img src="images/notes/4d_0_turn.png" alt="Sierpinski 5-cell, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_0_slice.png" alt="Sierpinski 5-cell, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Sierpinski 5-cell</b> <a class="open" href="4d.html#r=5&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.5,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Five half-size copies at the corners of the 5-cell, the 4D tetrahedron, squeezed a little in W to fit in the tesseract. \(D = \log 5/\log 2 \approx 2.322\). Squeezing changes nothing: an affine map \(L\) turns each copy \(p \mapsto \tfrac12 (p + v)\) into \(p \mapsto \tfrac12 (p + Lv)\), still a half-size copy.</figcaption></figure><figure class="card" id="4d-1"><a class="pics" href="4d.html#r=2&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333" title="Open Menger sponge in the app"><span class="pic"><img src="images/notes/4d_1_turn.png" alt="Menger sponge, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_1_slice.png" alt="Menger sponge, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Menger sponge</b> <a class="open" href="4d.html#r=2&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333">open&nbsp;&rarr;</a><br>The 81 tesseracts a third the size, keeping those with at most one coordinate in the middle: \(16 + 4\cdot8 = 48\) of them. \(D = \log 48/\log 3 \approx 3.524\).</figcaption></figure><figure class="card" id="4d-2"><a class="pics" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.333333,0.333333,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333" title="Open Cross of crosses in the app"><span class="pic"><img src="images/notes/4d_2_turn.png" alt="Cross of crosses, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_2_slice.png" alt="Cross of crosses, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Cross of crosses</b> <a class="open" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.333333,0.333333,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333">open&nbsp;&rarr;</a><br>The middle tesseract and the middles of its eight cubic cells, a third the size: nine copies, and \(D = \log 9/\log 3 = 2\).</figcaption></figure><figure class="card" id="4d-3"><a class="pics" href="4d.html#r=3&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.1&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333" title="Open Cantor dust in the app"><span class="pic"><img src="images/notes/4d_3_turn.png" alt="Cantor dust, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_3_slice.png" alt="Cantor dust, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Cantor dust</b> <a class="open" href="4d.html#r=3&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.1&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333">open&nbsp;&rarr;</a><br>The sixteen corner tesseracts a third the size: the Cantor set four times over, \(D = 4 \cdot \tfrac{\log 2}{\log 3} \approx 2.524\). Slices show it as dust: most values of W miss it altogether.</figcaption></figure><figure class="card" id="4d-4"><a class="pics" href="4d.html#r=5&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.475,0,0.475,0.475,0,0,0,0,0,0,0.05,0.4,0.05,0.05;0.609808,0.4,0.090192,0.2,0,60,0,0,0,0,0.6,0.6,0.6,0.6;0.327978,0.608627,0.327978,0.327978,-19.4,-3.5,-3.5,20.7,19.4,-3.7,0.42,0.42,0.42,0.42;0.277341,0.330458,0.302659,0.302659,-19.4,3.5,3.5,-20.7,-19.4,-3.7,0.42,0.42,0.42,0.42;0.302659,0.330458,0.277341,0.302659,19.4,3.5,-3.5,20.7,-19.4,3.7,0.42,0.42,0.42,0.42;0.302659,0.330458,0.302659,0.277341,19.4,-3.5,3.5,-20.7,19.4,3.7,0.42,0.42,0.42,0.42" title="Open Tree in the app"><span class="pic"><img src="images/notes/4d_4_turn.png" alt="Tree, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_4_slice.png" alt="Tree, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Tree</b> <a class="open" href="4d.html#r=5&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.475,0,0.475,0.475,0,0,0,0,0,0,0.05,0.4,0.05,0.05;0.609808,0.4,0.090192,0.2,0,60,0,0,0,0,0.6,0.6,0.6,0.6;0.327978,0.608627,0.327978,0.327978,-19.4,-3.5,-3.5,20.7,19.4,-3.7,0.42,0.42,0.42,0.42;0.277341,0.330458,0.302659,0.302659,-19.4,3.5,3.5,-20.7,-19.4,-3.7,0.42,0.42,0.42,0.42;0.302659,0.330458,0.277341,0.302659,19.4,3.5,-3.5,20.7,-19.4,3.7,0.42,0.42,0.42,0.42;0.302659,0.330458,0.302659,0.277341,19.4,-3.5,3.5,-20.7,19.4,3.7,0.42,0.42,0.42,0.42">open&nbsp;&rarr;</a><br>A trunk, its top turned a little, and four branches leaning out into X, Z and W. Affinity dimension about 2.105.</figcaption></figure><figure class="card" id="4d-5"><a class="pics" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0.25,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0.25,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.5,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5" title="Open 16-cell flake in the app"><span class="pic"><img src="images/notes/4d_5_turn.png" alt="16-cell flake, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_5_slice.png" alt="16-cell flake, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>16-cell flake</b> <a class="open" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0.25,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0.25,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0.25,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.5,0.25,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>Eight half-size copies at the corners of the 16-cell, the 4D octahedron: the middles of the tesseract's eight cubes. \(D = \log 8/\log 2 = 3\).</figcaption></figure><figure class="card" id="4d-6"><a class="pics" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5" title="Open Pyramid on a cube in the app"><span class="pic"><img src="images/notes/4d_6_turn.png" alt="Pyramid on a cube, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_6_slice.png" alt="Pyramid on a cube, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Pyramid on a cube</b> <a class="open" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.25,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>The 4D pyramid: the eight corners of a cube at the bottom in W, and one point at the top. Nine half-size copies, \(D = \log 9/\log 2 \approx 3.170\). Its slices shrink towards the top, as a pyramid's do.</figcaption></figure><figure class="card" id="4d-7"><a class="pics" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5" title="Open Triangle × triangle in the app"><span class="pic"><img src="images/notes/4d_7_turn.png" alt="Triangle × triangle, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_7_slice.png" alt="Triangle × triangle, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Triangle × triangle</b> <a class="open" href="4d.html#r=4&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0,0,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.5,0,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0.5,0,0,0,0,0,0,0,0.5,0.5,0.5,0.5;0.25,0.5,0.25,0.5,0,0,0,0,0,0,0.5,0.5,0.5,0.5">open&nbsp;&rarr;</a><br>The Sierpinski triangle in X and Y times another in Z and W: nine half-size copies. Its dimension is the sum, \(2 \cdot \tfrac{\log 3}{\log 2} \approx 3.170\), the same number as the pyramid's. It needs four dimensions: it has no room in three.</figcaption></figure><figure class="card" id="4d-8"><a class="pics" href="4d.html#r=2&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333" title="Open Carpet × carpet in the app"><span class="pic"><img src="images/notes/4d_8_turn.png" alt="Carpet × carpet, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_8_slice.png" alt="Carpet × carpet, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Carpet × carpet</b> <a class="open" href="4d.html#r=2&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.333333,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.333333,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333">open&nbsp;&rarr;</a><br>The Sierpinski carpet in X and Y times the carpet in Z and W: 64 copies a third the size, \(D = 2\cdot\tfrac{\log 8}{\log 3} \approx 3.786\).</figcaption></figure><figure class="card" id="4d-9"><a class="pics" href="4d.html#r=3&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.1&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333" title="Open Cantor dust with hearts in the app"><span class="pic"><img src="images/notes/4d_9_turn.png" alt="Cantor dust with hearts, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_9_slice.png" alt="Cantor dust with hearts, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Cantor dust with hearts</b> <a class="open" href="4d.html#r=3&amp;l=1&amp;so=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.1&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.333333,0.333333,0.333333,0.333333,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333;0.666667,0.666667,0.666667,0.666667,0,0,0,0,0,0,0.333333,0.333333,0.333333,0.333333">open&nbsp;&rarr;</a><br>The sixteen corners of the tesseract and its middle, a third the size: \(D = \log 17/\log 3 \approx 2.579\). Every grain of the Cantor dust has a heart.</figcaption></figure><figure class="card" id="4d-10"><a class="pics" href="4d.html#r=12&amp;l=1&amp;so=1&amp;d=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.282072,-0.067721,0.282072,-0.067721,24,0,0,0,0,24,0.86,0.86,0.86,0.86;0.64,0.02,0.33,0.33,0,0,0,0,0,0,0.33,0.33,0.33,0.33" title="Open Clifford spiral in the app"><span class="pic"><img src="images/notes/4d_10_turn.png" alt="Clifford spiral, turned 30&deg; through W" loading="lazy"><span class="pic_label">turned 30&deg; through W</span></span><span class="pic"><img src="images/notes/4d_10_slice.png" alt="Clifford spiral, a slice" loading="lazy"><span class="pic_label">a slice</span></span></a><figcaption><b>Clifford spiral</b> <a class="open" href="4d.html#r=12&amp;l=1&amp;so=1&amp;d=1&amp;m=turn&amp;pl=xw&amp;a=30&amp;s=0.4&amp;c=w&amp;p=0&amp;v=-30,20&amp;t=0.282072,-0.067721,0.282072,-0.067721,24,0,0,0,0,24,0.86,0.86,0.86,0.86;0.64,0.02,0.33,0.33,0,0,0,0,0,0,0.33,0.33,0.33,0.33">open&nbsp;&rarr;</a><br>A double turn: one copy, scaled by 0.86, turns by \(24^\circ\) in the XY plane and by \(24^\circ\) in the ZW plane at once, about the middle; a small copy (0.33) is spun round by it into a spiral of curls. Moran's equation \(0.86^D + 0.33^D = 1\) gives \(D \approx 1.462\).</figcaption></figure></div>
+      </section>
+
+      <!-- ================================================================ -->
+      <section id="reading">
+        <h2><span class="num">10</span> Further reading</h2>
+        <p>On the web (Wikipedia):</p>
+        <ul class="reading">
+          <li><a href="https://en.wikipedia.org/wiki/Affine_transformation">Affine transformation</a>,
+            <a href="https://en.wikipedia.org/wiki/Rotation_matrix">Rotation matrix</a>,
+            <a href="https://en.wikipedia.org/wiki/Singular_value_decomposition">Singular value decomposition</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/Banach_fixed-point_theorem">Banach fixed-point theorem</a>,
+            <a href="https://en.wikipedia.org/wiki/Hausdorff_distance">Hausdorff distance</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/Iterated_function_system">Iterated function system</a>,
+            <a href="https://en.wikipedia.org/wiki/Chaos_game">Chaos game</a>,
+            <a href="https://en.wikipedia.org/wiki/Barnsley_fern">Barnsley fern</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/Hausdorff_dimension">Hausdorff dimension</a>,
+            <a href="https://en.wikipedia.org/wiki/Minkowski%E2%80%93Bouligand_dimension">Box-counting dimension</a>,
+            <a href="https://en.wikipedia.org/wiki/Open_set_condition">Open set condition</a>,
+            <a href="https://en.wikipedia.org/wiki/List_of_fractals_by_Hausdorff_dimension">List of fractals by Hausdorff dimension</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/Sierpi%C5%84ski_triangle">Sierpiński triangle</a>,
+            <a href="https://en.wikipedia.org/wiki/Koch_snowflake">Koch snowflake</a>,
+            <a href="https://en.wikipedia.org/wiki/L%C3%A9vy_C_curve">Lévy C curve</a>,
+            <a href="https://en.wikipedia.org/wiki/Dragon_curve">Dragon curve</a>,
+            <a href="https://en.wikipedia.org/wiki/Pythagoras_tree_(fractal)">Pythagoras tree</a>,
+            <a href="https://en.wikipedia.org/wiki/Vicsek_fractal">Vicsek fractal</a>,
+            <a href="https://en.wikipedia.org/wiki/Cantor_set">Cantor set</a>,
+            <a href="https://en.wikipedia.org/wiki/Menger_sponge">Menger sponge</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/Euler_angles">Euler angles</a>,
+            <a href="https://en.wikipedia.org/wiki/Painter%27s_algorithm">Painter's algorithm</a>,
+            <a href="https://en.wikipedia.org/wiki/Lambertian_reflectance">Lambertian reflectance</a></li>
+          <li><a href="https://en.wikipedia.org/wiki/Tesseract">Tesseract</a>,
+            <a href="https://en.wikipedia.org/wiki/5-cell">5-cell</a>,
+            <a href="https://en.wikipedia.org/wiki/16-cell">16-cell</a>,
+            <a href="https://en.wikipedia.org/wiki/Rotations_in_4-dimensional_Euclidean_space">Rotations in 4-dimensional Euclidean space</a>,
+            <a href="https://en.wikipedia.org/wiki/Givens_rotation">Givens rotation</a>,
+            <a href="https://en.wikipedia.org/wiki/Schlegel_diagram">Schlegel diagram</a>,
+            <a href="https://en.wikipedia.org/wiki/Flatland">Flatland</a></li>
+        </ul>
+        <p>In print:</p>
+        <ul class="reading">
+          <li>J. E. Hutchinson, <i>Fractals and self similarity</i>, Indiana University Mathematics Journal 30 (1981), 713&ndash;747.</li>
+          <li>M. F. Barnsley, <i>Fractals Everywhere</i>, Academic Press, 1988.</li>
+          <li>K. J. Falconer, <i>Fractal Geometry: Mathematical Foundations and Applications</i>, Wiley (3rd ed. 2014).</li>
+          <li>K. J. Falconer, <i>The Hausdorff dimension of self-affine fractals</i>, Mathematical Proceedings of the Cambridge Philosophical Society 103 (1988), 339&ndash;350.</li>
+          <li>B. Solomyak, <i>Measure and dimension for some fractal families</i>, Mathematical Proceedings of the Cambridge Philosophical Society 124 (1998), 531&ndash;546.</li>
+          <li>P. A. P. Moran, <i>Additive functions of intervals and Hausdorff measure</i>, Proceedings of the Cambridge Philosophical Society 42 (1946), 15&ndash;23.</li>
+          <li>J. H. Elton, <i>An ergodic theorem for iterated maps</i>, Ergodic Theory and Dynamical Systems 7 (1987), 481&ndash;488.</li>
+          <li>B. B. Mandelbrot, <i>The Fractal Geometry of Nature</i>, W. H. Freeman, 1982.</li>
+          <li>E. A. Abbott, <i>Flatland: A Romance of Many Dimensions</i>, 1884.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
