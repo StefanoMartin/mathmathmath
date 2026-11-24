@@ -156,6 +156,8 @@ var space = {
   only_last: true,
   solid: true,          // copies as solid lit cubes, or their outlines
   show_handles: true,
+  locked_dots: {},         // dots of the frames left out and not draggable ({corner, side}: the tutorial)
+  drag_fixed: {},          // {sizes: true}: the round dot turns without resizing (the tutorial)
   hover_index: -1,      // transform whose frame is highlighted, or -1
   hold: false,          // keep the camera where it is (while a frame is dragged)
 
@@ -913,6 +915,11 @@ var space = {
   // Draw the frames: dashed green boxes (solid when highlighted) with their
   // names, a round dot on the end of the X edge (turn and resize) and a
   // square one on the end of the Y edge (tilt).
+  // What dragging a dot does.
+  dot_label: function(part){
+    return part === "corner" ? ((this.drag_fixed || {}).sizes ? "turn" : "turn, resize") : "tilt";
+  },
+
   paint_frames: function(ctx, dpr){
     var cam = this.cam;
     if (!cam || !this.show_handles) { return; }
@@ -966,18 +973,17 @@ var space = {
       // The dots, each with a pale ring.
       var r = (on ? 6 : 4) * dpr, q = (on ? 5 : 4) * dpr, g = 1.5 * dpr;
       var rx = xs[1], ry = ys[1], sx = xs[2], sy = ys[2];
+      var locked = this.locked_dots || {}, round = !locked.corner, square = !locked.side;
       ctx.fillStyle = PAPER;
       ctx.beginPath();
-      ctx.arc(rx, ry, r + g, 0, 2 * Math.PI);
-      ctx.rect(sx - q - g, sy - q - g, 2 * (q + g), 2 * (q + g));
+      if (round) { ctx.arc(rx, ry, r + g, 0, 2 * Math.PI); }
+      if (square) { ctx.rect(sx - q - g, sy - q - g, 2 * (q + g), 2 * (q + g)); }
       ctx.fill();
       ctx.fillStyle = ink;
-      ctx.beginPath();
-      ctx.arc(rx, ry, r, 0, 2 * Math.PI);
-      ctx.fill();
+      if (round) { ctx.beginPath(); ctx.arc(rx, ry, r, 0, 2 * Math.PI); ctx.fill(); }
       ctx.strokeStyle = ink;
       ctx.lineWidth = (on ? 2.5 : 2) * dpr;
-      ctx.strokeRect(sx - q + ctx.lineWidth / 2, sy - q + ctx.lineWidth / 2, 2 * q - ctx.lineWidth, 2 * q - ctx.lineWidth);
+      if (square) { ctx.strokeRect(sx - q + ctx.lineWidth / 2, sy - q + ctx.lineWidth / 2, 2 * q - ctx.lineWidth, 2 * q - ctx.lineWidth); }
       ctx.globalAlpha = 1;
 
       // Its name in the middle, and on the highlighted frame what each dot does.
@@ -1002,8 +1008,8 @@ var space = {
           ctx.fillStyle = INK;
           ctx.fillText(text, tx, ty);
         };
-        note("turn, resize", rx, ry);
-        note("tilt", sx, sy);
+        if (round) { note(this.dot_label("corner"), rx, ry); }
+        if (square) { note(this.dot_label("tilt"), sx, sy); }
         ctx.textAlign = "center";
       }
     }

@@ -1,0 +1,137 @@
+/* Similar Fractal: the tutorial's card at the top of the side panel (tutorial.js). */
+
+body.tutorial #panel .intro {
+  display: none;
+}
+
+.tut_card {
+  margin: 0 0 14px;
+  padding: 10px 14px 10px;
+  border: 1px solid #8c3b2a;
+  border-left-width: 4px;
+  background: #fbf9f3;
+  transition: background-color 0.4s;
+}
+
+.tut_card.tut_success {
+  background: #eef3e6;
+  border-color: #2f6b3a;
+}
+
+.tut_count {
+  margin: 0;
+  font-size: 12.5px;
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  color: #6b6557;
+}
+
+.tut_bar {
+  height: 3px;
+  margin: 4px 0 8px;
+  background: #ddd7c7;
+}
+
+.tut_bar span {
+  display: block;
+  height: 100%;
+  background: #8c3b2a;
+  transition: width 0.5s;
+}
+
+.tut_card h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: normal;
+}
+
+.tut_text p {
+  margin: 4px 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.tut_text .tut_more {
+  font-size: 13px;
+}
+
+.tut_card a {
+  color: #8c3b2a;
+}
+
+.tut_task {
+  margin: 8px 0 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  background: #f1e9d8;
+}
+
+.tut_done {
+  margin: 6px 0 0;
+  color: #2f6b3a;
+  font-weight: bold;
+}
+
+.tut_buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 10px 0 0;
+  font-size: 13.5px;
+}
+
+.tut_buttons .tut_primary,
+.tut_buttons .tut_go {
+  font-weight: bold;
+}
+
+.tut_buttons .tut_go {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid #8c3b2a;
+  background: #8c3b2a;
+  color: #fbf9f3;
+  text-decoration: none;
+}
+
+.tut_buttons .tut_go:hover {
+  background: #6f2e20;
+}
+
+.tut_buttons .tut_leave {
+  margin-left: auto;
+}
+
+.tut_buttons .tut_restart {
+  font-size: 12.5px;
+}
+
+/* A part just unlocked glows for a moment. */
+.tut_new {
+  animation: tut_glow 2.6s ease-out;
+}
+
+@keyframes tut_glow {
+  0%, 30% { box-shadow: 0 0 0 3px rgba(140, 59, 42, 0.55); background-color: #f6e7c8; }
+  100% { box-shadow: 0 0 0 3px rgba(140, 59, 42, 0); }
+}
+
+/* The way in, on the pages themselves. */
+.tutorial_link {
+  margin: 6px 0 12px;
+  font-size: 14px;
+}
+
+.tutorial_link a {
+  color: #8c3b2a;
+}
+
+body.tutorial .tutorial_link {
+  display: none;
+}
+
+/* Until the Display section (with its Zoom row and Fit) is unlocked, Fit is over the figure, as on a phone. */
+body.tutorial.tut-lock-display #figureFit {
+  display: inline-block;
+}

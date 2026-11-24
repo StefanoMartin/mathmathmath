@@ -638,7 +638,7 @@ var viewGestures = function(){
         setHover(hit ? hit.index : -1);
         canvas.style.cursor = hit ? (hit.part === "move" ? "move" : "crosshair") : "";
         canvas.title = !hit ? "" :
-          hit.part === "corner" ? "Round dot: drag to turn and resize T" + (hit.index + 1) :
+          hit.part === "corner" ? "Round dot: drag to " + space.dot_label("corner").replace(", ", " and ") + " T" + (hit.index + 1) :
           hit.part === "tilt" ? "Square dot: drag to tilt T" + (hit.index + 1) :
           "Drag to move T" + (hit.index + 1);
       }
@@ -649,7 +649,10 @@ var viewGestures = function(){
     if (drag){
       var t;
       if (drag.part === "move") { t = dragMove(drag.t, drag.cam, p.x - drag.start.x, p.y - drag.start.y, space.dpr || 1); }
-      else if (drag.part === "corner") { t = dragTurn(drag.t, drag.cam, drag.o, drag.p0, [p.x, p.y]); }
+      else if (drag.part === "corner"){
+        t = dragTurn(drag.t, drag.cam, drag.o, drag.p0, [p.x, p.y]);
+        if (space.drag_fixed.sizes) { for (var k = 6; k < 9; k++) { t[k] = drag.t[k]; } }
+      }
       else { t = dragTilt(drag.t, drag.cam, p.x - drag.start.x, p.y - drag.start.y); }
       setBox(spaceBoxes()[drag.index], t);
       figureChanged(false);

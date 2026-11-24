@@ -146,6 +146,7 @@ var similar = {
   colour_mode: "generation",   // colour by "generation", by "transform", or one "ink"
   opacity: 1,              // 0.1 .. 1; below 1 overlapping copies show deeper
   show_handles: true,
+  locked_dots: {},         // dots of the frames left out and not draggable ({corner, side}: the tutorial)
   hover_index: -1,         // transform whose frame is highlighted, or -1
   filled: false,           // fill closed shapes instead of outlining them
   line_width: 1.5,         // in CSS pixels
@@ -954,21 +955,23 @@ var similar = {
 
       // The solid round dot (turn and resize) and the hollow square one
       // (stretch and slant), each with a pale ring.
+      // (A dot can be left out: locked_dots, set by the tutorial.)
       var r = (on ? 6 : 4) * dpr, q = (on ? 5 : 4) * dpr, g = 1.5 * dpr;
       var rx = X + dx, ry = Y - dy, sx = X + ux, sy = Y + uy;
+      var round = !this.locked_dots.corner, square = !this.locked_dots.side;
       ctx.fillStyle = PAPER;
       ctx.beginPath();
-      ctx.arc(rx, ry, r + g, 0, 2 * Math.PI);
-      ctx.rect(sx - q - g, sy - q - g, 2 * (q + g), 2 * (q + g));
+      if (round) { ctx.arc(rx, ry, r + g, 0, 2 * Math.PI); }
+      if (square) { ctx.rect(sx - q - g, sy - q - g, 2 * (q + g), 2 * (q + g)); }
       ctx.fill();
       ctx.fillStyle = ink;
-      ctx.beginPath();
-      ctx.arc(rx, ry, r, 0, 2 * Math.PI);
-      ctx.fill();
+      if (round) { ctx.beginPath(); ctx.arc(rx, ry, r, 0, 2 * Math.PI); ctx.fill(); }
       ctx.strokeStyle = ink;
       ctx.lineWidth = (on ? 2.5 : 2) * dpr;
-      ctx.strokeRect(sx - q + ctx.lineWidth / 2, sy - q + ctx.lineWidth / 2,
-                     2 * q - ctx.lineWidth, 2 * q - ctx.lineWidth);
+      if (square){
+        ctx.strokeRect(sx - q + ctx.lineWidth / 2, sy - q + ctx.lineWidth / 2,
+                       2 * q - ctx.lineWidth, 2 * q - ctx.lineWidth);
+      }
 
       // On the highlighted frame, say what each dot does, just outside it.
       if (on){
@@ -987,8 +990,8 @@ var similar = {
           ctx.fillStyle = INK;
           ctx.fillText(text, tx, ty);
         };
-        note("turn, resize", rx, ry);
-        note("stretch, slant", sx, sy);
+        if (round) { note("turn, resize", rx, ry); }
+        if (square) { note("stretch, slant", sx, sy); }
         ctx.textAlign = "center";
       }
 

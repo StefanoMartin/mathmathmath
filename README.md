@@ -148,6 +148,21 @@ Favourites and colour choices are kept in the browser, separately for each
 copy of the page: the ones saved in the local copy do not appear online.
 Use *Save to file* and *Load from file* to move favourites.
 
+## The tutorial
+
+`index.html?tutorial` (linked as *Follow the tutorial* under each page's
+introduction) is the same three pages with most of the panel locked. A card at
+the top of the panel explains one idea at a time and gives a small task: move
+the copy, turn it, shrink it, stretch it, slant it, mirror it, repeat it,
+change the shape, add transforms, and so on. Doing the task (or *Skip*)
+unlocks the next part. After the 2D steps the card leads on to 3D and then
+4D; at the end everything is unlocked. There are 29 steps.
+
+Nothing in the app is copied for it: `javascript/tutorial.js` hides locked
+parts with CSS classes on `<body>`, watches the figure's state to see when a
+task is done, and keeps the step in the browser (*Start again* clears it,
+*Leave* opens the full page with the same figure).
+
 ## The notes page
 
 `notes.html` is made from `tools/notes-source.html`, where the formulas are
@@ -206,6 +221,7 @@ npm run test:browser
 | `tests/unit/notes.test.js` | The notes: up to date with their source, every formula reads, pictures and links exist |
 | `tests/e2e/notes.spec.js` | The notes in the browser: the tab, the side panel and its contents, formulas drawn, pictures loaded, links to sections and to figures in the app |
 | `tests/e2e/notes-phone.spec.js` | The notes on a phone: the panel above the text, nothing wider than the screen |
+| `tests/e2e/tutorial.spec.js` | The tutorial: all 29 steps done in turn across the three pages, locked parts hidden, Skip, Start again, a page visited before its turn |
 
 ## Files
 
@@ -242,6 +258,8 @@ npm run test:browser
 | `4d.html` | The 4D page |
 | `javascript/hyper.js` | The 4D engine: transforms in four dimensions, generations of tesseracts drawn solid or as outlines, random dots, all turned through W or sliced along it and seen with the 3D camera; the frames and dragging them |
 | `javascript/hyper-page.js` | The 4D page: presets, transform boxes, playing the animation, links and undo, dragging frames, colours and the view |
+| `javascript/tutorial.js` | The tutorial: its steps, the parts each one unlocks, the card, and checking each task |
+| `css/tutorial.css` | The look of the tutorial's card |
 
 ## How it works
 

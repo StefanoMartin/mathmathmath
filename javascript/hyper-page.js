@@ -472,6 +472,7 @@ var figureChanged = function(push){
   // Another way of drawing: fit the view to it.
   if (hyper.draw_mode !== byId("draw_mode").value) { hyper.need_fit = true; }
   hyper.draw_mode = byId("draw_mode").value;
+  var refit = hyper.need_fit || !hyper.centre4;
   hyper.set_transforms(readHyperTransforms());
   hyper.only_last = byId("only_last").checked;
   hyper.solid = byId("solid").checked;
@@ -481,6 +482,8 @@ var figureChanged = function(push){
     Array.prototype.forEach.call(el.querySelectorAll("input, button"), function(c){ c.disabled = dots; });
   });
   clampRepeat4();
+  // Fitted again now that Repeat is known (copies that do not shrink are fitted as built).
+  if (refit) { hyper.fit(); }
   updateDimension4();
   updatePresetLabel4();
   byId("addTransform").disabled = hyperBoxes().length >= HYPER_MAX_TRANSFORMS;
@@ -717,7 +720,7 @@ var hyperGestures = function(){
         setHover(hit ? hit.index : -1);
         canvas.style.cursor = hit ? (hit.part === "move" ? "move" : "crosshair") : "";
         canvas.title = !hit ? "" :
-          hit.part === "corner" ? "Round dot: drag to turn and resize T" + (hit.index + 1) :
+          hit.part === "corner" ? "Round dot: drag to " + hyper.dot_label("corner").replace(", ", " and ") + " T" + (hit.index + 1) :
           hit.part === "tilt" ? "Square dot: drag to tilt T" + (hit.index + 1) :
           "Drag to move T" + (hit.index + 1);
       }
@@ -728,7 +731,10 @@ var hyperGestures = function(){
     if (drag){
       var t;
       if (drag.part === "move") { t = hyper.drag_move(drag.t, p.x - drag.start.x, p.y - drag.start.y); }
-      else if (drag.part === "corner") { t = hyper.drag_turn(drag.t, drag.o, drag.p0, [p.x, p.y]); }
+      else if (drag.part === "corner"){
+        t = hyper.drag_turn(drag.t, drag.o, drag.p0, [p.x, p.y]);
+        if (hyper.drag_fixed.sizes) { for (var k = 10; k < 14; k++) { t[k] = drag.t[k]; } }
+      }
       else { t = hyper.drag_tilt(drag.t, p.x - drag.start.x, p.y - drag.start.y); }
       setBox4(hyperBoxes()[drag.index], t);
       figureChanged(false);

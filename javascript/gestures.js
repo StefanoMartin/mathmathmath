@@ -91,8 +91,8 @@ var figureEvents = function(){
         // The tooltip says what dragging here does.
         var name = hit ? "T" + (hit.index + 1) : "";
         canvas.title = !hit ? "" :
-          hit.part === "corner" ? "Round dot: drag to turn and resize " + name :
-          hit.part === "side" ? "Square dot: drag to stretch and slant " + name :
+          hit.part !== "move" ? (hit.part === "corner" ? "Round" : "Square") + " dot: drag to " +
+            similar.dot_label(hit.part).replace(", ", " and ") + " " + name :
           "Drag to move " + name;
         setHover(hit ? hit.index : -1);
       }
@@ -125,6 +125,7 @@ var figureEvents = function(){
         // The square dot is where the upright side of the frame ends, w + col2:
         // seen from the frame (turned back, unmirrored), its height over the
         // base is size * stretch, and how far it leans over gives the slant.
+        var fixed = similar.drag_fixed || {};
         if (drag.scale > 1e-6){
           var r = drag.rotation * Math.PI / 180;
           var vx = d.x - drag.x, vy = d.y - drag.y;
@@ -132,16 +133,17 @@ var figureEvents = function(){
           var up = (vy * Math.cos(r) - vx * Math.sin(r)) * (drag.mirror ? -1 : 1);
           var height = Math.max(up, 0.01 * drag.scale);
           var slant = Math.atan2(along, height) * 180 / Math.PI;
-          setTransformValue(drag.index, 4, roundTo(height / drag.scale, 3));
-          setTransformValue(drag.index, 5, roundTo(Math.max(-MAX_SLANT, Math.min(MAX_SLANT, slant)), 1));
+          if (!fixed.stretch) { setTransformValue(drag.index, 4, roundTo(height / drag.scale, 3)); }
+          if (!fixed.slant) { setTransformValue(drag.index, 5, roundTo(Math.max(-MAX_SLANT, Math.min(MAX_SLANT, slant)), 1)); }
         }
       } else {
         // The round dot is the corner w + col1: its direction is the rotation, its distance the scale.
         var zx = d.x - drag.x, zy = d.y - drag.y;
         var rotation = Math.atan2(zy, zx) * 180 / Math.PI;
         if (rotation < 0) { rotation += 360; }
-        setTransformValue(drag.index, 2, roundTo(rotation, 1));
-        setTransformValue(drag.index, 3, roundTo(Math.min(1, Math.sqrt(zx * zx + zy * zy)), 3));
+        var held = similar.drag_fixed || {};
+        if (!held.rotation) { setTransformValue(drag.index, 2, roundTo(rotation, 1)); }
+        if (!held.scale) { setTransformValue(drag.index, 3, roundTo(Math.min(1, Math.sqrt(zx * zx + zy * zy)), 3)); }
       }
     }
     scheduleBuild();

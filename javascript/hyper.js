@@ -252,6 +252,8 @@ var hyper = {
   need_fit: true,
   centre4: null,
   show_handles: true,
+  locked_dots: {},         // dots of the frames left out and not draggable ({corner, side}: the tutorial)
+  drag_fixed: {},          // {sizes: true}: the round dot turns without resizing (the tutorial)
   // Copies of the tesseract, generation after generation (as on the 3D page),
   // or random dots.
   draw_mode: "copies",
@@ -312,13 +314,29 @@ var hyper = {
   // done after every edit, so the view holds still while a frame is dragged;
   // the page asks for it (need_fit) for a new figure or Fit.
   fit: function(){
-    if (this.box){
+    // A transform that does not shrink leaves no figure to fit (its dots
+    // wander off): drawing copies, the copies built are fitted instead.
+    var loose = this.draw_mode === "copies" && this.n &&
+                (!this.box || Math.max.apply(null, this.shrink) >= 1);
+    if (this.box || loose){
       this.need_fit = false;
       // The figure, the frames of the transforms (the first generation of
       // copies) and, drawing copies, the tesseract they start from.
-      var b = { min: this.box.min.slice(), max: this.box.max.slice() }, r = 0;
+      var b = loose ? { min: [0, 0, 0, 0], max: [1, 1, 1, 1] } : { min: this.box.min.slice(), max: this.box.max.slice() }, r = 0;
       if (this.draw_mode === "copies"){
         for (var axis = 0; axis < 4; axis++){ b.min[axis] = Math.min(b.min[axis], 0); b.max[axis] = Math.max(b.max[axis], 1); }
+      }
+      if (loose){
+        this.build();
+        var C = this.copies;
+        for (var i = 0; i < this.total; i++){
+          for (var row4 = 0; row4 < 4; row4++){
+            var low = C[20 * i + 16 + row4], high = low;
+            for (var col4 = 0; col4 < 4; col4++){ var x = C[20 * i + 4 * row4 + col4]; if (x < 0) { low += x; } else { high += x; } }
+            if (low < b.min[row4]) { b.min[row4] = low; }
+            if (high > b.max[row4]) { b.max[row4] = high; }
+          }
+        }
       }
       for (var t = 0; t < this.n; t++){
         var o = 20 * t, m = this.maps;
@@ -989,6 +1007,7 @@ var hyper = {
   },
 
   paint_frames: function(ctx, dpr){ return space.paint_frames.call(this, ctx, dpr); },
+  dot_label: function(part){ return space.dot_label.call(this, part); },
   handle_at: function(mx, my, slop){ return space.handle_at.call(this, mx, my, slop); },
 
   // The centre of transform t's frame, in 4D.
