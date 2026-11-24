@@ -218,6 +218,8 @@ npm run test:browser
 | `css/notes.css` | The look of the notes |
 | `javascript/notes.js` | The notes' Contents in the side panel marking the section being read |
 | `images/notes/` | The notes' pictures, made with the app |
+| `images/favicon.svg`, `images/*.png` | The icon, a Pythagoras tree (made by `tools/make-favicon.py`) |
+| `tools/make-favicon.py` | Draws the icon, as SVG and as PNG for older browsers and phone home screens |
 | `css/style.css` | The look of the page |
 | `javascript/fractal.js` | The fractal engine: generations, zoom detail, drawing, SVG export, colours |
 | `javascript/dots.js` | Drawing the figure as random dots (the chaos game) |

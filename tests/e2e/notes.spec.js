@@ -61,3 +61,21 @@ test("the notes: the contents lead to their sections; a picture opens its figure
   await expect.poll(() => page.locator("#preset").evaluate((s) => s.options[s.selectedIndex].textContent)).toBe("Clifford spiral");
   await expect(page.locator("#draw_mode")).toHaveValue("dots");
 });
+
+test("every page has the icon: the Pythagoras tree, in SVG and PNG", async ({ page }) => {
+  for (const name of ["index.html", "3d.html", "4d.html", "notes.html"]){
+    await page.goto(pathToFileURL(path.join(__dirname, "..", "..", name)).href);
+    const sizes = await page.evaluate(async () => {
+      const load = (href) => new Promise((done) => {
+        const img = new Image();
+        img.onload = () => done(img.naturalWidth);
+        img.onerror = () => done(0);
+        img.src = href;
+      });
+      const hrefs = Array.from(document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')).map((l) => l.href);
+      return Promise.all(hrefs.map(load));
+    });
+    expect(sizes.length, name).toBe(3);
+    for (const w of sizes) { expect(w, name).toBeGreaterThan(0); }
+  }
+});
